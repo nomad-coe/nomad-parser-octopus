@@ -1,0 +1,75 @@
+
+******************************** Grid ********************************
+Simulation Box:
+  Type = minimum
+  Species =     O     Radius =   7.559 b
+  Species =     H     Radius =   7.559 b
+  Octopus will run in 3 dimension(s).
+  Octopus will treat the system as periodic in 0 dimension(s).
+Main mesh:
+  Spacing [b] = ( 0.435, 0.435, 0.435)    volume/point [b^3] =      0.08210
+  # inner mesh =      25934
+  # total mesh =      43270
+  Grid Cutoff [H] =    26.123439    Grid Cutoff [Ry] =    52.246878
+**********************************************************************
+
+
+**************************** Theory Level ****************************
+Input: [TheoryLevel = dft]
+
+Exchange-correlation:
+    vdW-DF from libvdwxc
+  # inner mesh =      25934
+
+Input: [SICCorrection = sic_none]
+**********************************************************************
+
+SCF *not* converged!
+
+Some of the states are not fully converged!
+Eigenvalues [H]
+ #st  Spin   Eigenvalue      Occupation
+   1   --    -0.736948       2.000000
+   2   --    -0.204453       2.000000
+   3   --     0.112763       2.000000
+   4   --     0.120371       2.000000
+
+Energy [H]:
+      Total       =        -8.57840677
+      Free        =        -8.57840677
+      -----------
+      Ion-ion     =        13.04456532
+      Eigenvalues =        -1.41653478
+      Hartree     =        20.20643731
+      Int[n*v_xc] =         0.00000000
+      Exchange    =         0.00000000
+      Correlation =         0.00000000
+      vanderWaals =         0.00000000
+      Delta XC    =         0.00000000
+      Entropy     =         0.00000000
+      -TS         =        -0.00000000
+      Kinetic     =         8.53903760
+      External    =       -45.58764782
+      Non-local   =        -2.75132256
+
+Dipole:                 [b]          [Debye]
+      <x> =    3.81977E-15      9.70888E-15
+      <y> =    7.38714E-15      1.87762E-14
+      <z> =   -7.55817E-01     -1.92110E+00
+
+Convergence:
+      abs_dens =  5.59498780E+00 ( 0.00000000E+00)
+      rel_dens =  6.99373475E-01 ( 1.00000000E-05)
+      abs_ev =  9.54754390E-01 ( 0.00000000E+00) [H]
+      rel_ev =  6.74007022E-01 ( 0.00000000E+00)
+
+Forces on the ions [H/b]
+ Ion                        x              y              z
+   1         O       0.000000       0.000000       2.756797
+   2         H      -0.000000       3.706671      -2.899800
+   3         H       0.000000      -3.706671      -2.899800
+ ----------------------------------------------------------
+ Max abs force       0.000000       3.706671       2.899800
+   Total force       0.000000      -0.000000      -3.042804
+  Total torque       0.000000       0.000000       0.000000
+
