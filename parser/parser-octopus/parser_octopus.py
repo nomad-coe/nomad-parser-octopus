@@ -34,6 +34,7 @@ def oct_energy_sm(octname, nomadname):
               name=octname)
 
 def adhoc_register_octopus_energy_unit(parser):
+
     #print 'GRRRRRRRRRRRRRRRRRRR'
     line = parser.fIn.readline()
     unit = line.rsplit('[', 2)[1].split(']', 2)[0]
