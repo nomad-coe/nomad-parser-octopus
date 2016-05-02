@@ -6,10 +6,10 @@ import org.{ json4s => jn }
 import scala.collection.breakOut
 
 object OctopusParser extends SimpleExternalParserGenerator(
-  name = "OctopusParser",
+  name = "OrcaParser",
   parserInfo = jn.JObject(
-    ("name" -> jn.JString("OctopusParser")) ::
-      ("parserId" -> jn.JString("OctopusParser" + lab.OctopusVersionInfo.version)) ::
+    ("name" -> jn.JString("OrcaParser")) ::
+      ("parserId" -> jn.JString("OrcaParser" + lab.OctopusVersionInfo.version)) ::
       ("versionInfo" -> jn.JObject(
         ("nomadCoreVersion" -> jn.JObject(lab.NomadCoreVersionInfo.toMap.map {
           case (k, v) => k -> jn.JString(v.toString)
@@ -24,10 +24,10 @@ object OctopusParser extends SimpleExternalParserGenerator(
   //TODO: Update the replacement string (mainFileRe)
   mainFileRe = """******************************** Grid ********************************
                  |Simulation Box:""".r,
-  cmd = Seq(DefaultPythonInterpreter.python2Exe(), "${envDir}/parsers/octopus/parser/parser-octopus/OctopusParser.py",
+  cmd = Seq(DefaultPythonInterpreter.python2Exe(), "${envDir}/parsers/octopus/parser/parser-octopus/OrcaParser.py",
     "--uri", "${mainFileUri}", "${mainFilePath}"),
   resList = Seq(
-    "parser-octopus/OctopusParser.py",
+    "parser-octopus/OrcaParser.py",
     "parser-octopus/setup_paths.py",
     "nomad_meta_info/public.nomadmetainfo.json",
     "nomad_meta_info/common.nomadmetainfo.json",
