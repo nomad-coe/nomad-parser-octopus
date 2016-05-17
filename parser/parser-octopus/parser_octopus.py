@@ -60,7 +60,7 @@ sm_eig_occ = SM(r'\s*#st\s*Spin\s*Eigenvalue\s*Occupation',
                 required=True,
                 subMatchers=[ # TODO spin directions
                     SM(r'\s*\d+\s*..\s*%(eig)s\s*%(occ)s'
-                       % dict(eig=numpattern('eigenvalues_eigenvalues',
+                       % dict(eig=numpattern('eigenvalues_values',
                                              OCT_ENERGY_UNIT_NAME),
                               occ=numpattern('eigenvalues_occupation')),
                        required=True,
