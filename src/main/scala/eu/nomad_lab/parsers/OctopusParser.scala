@@ -22,12 +22,13 @@ object OctopusParser extends SimpleExternalParserGenerator(
   ),
   mainFileTypes = Seq("text/.*"),
   //TODO: Update the replacement string (mainFileRe)
-  mainFileRe = """******************************** Grid ********************************
-                 |Simulation Box:""".r,
-  cmd = Seq(DefaultPythonInterpreter.python2Exe(), "${envDir}/parsers/octopus/parser/parser-octopus/OrcaParser.py",
+  mainFileRe = """\*{32} Grid \*{32}
+Simulation Box:
+""".r,
+  cmd = Seq(DefaultPythonInterpreter.python2Exe(), "${envDir}/parsers/octopus/parser/parser-octopus/parser_octopus.py",
     "--uri", "${mainFileUri}", "${mainFilePath}"),
   resList = Seq(
-    "parser-octopus/OrcaParser.py",
+    "parser-octopus/parser_octopus.py",
     "parser-octopus/setup_paths.py",
     "nomad_meta_info/public.nomadmetainfo.json",
     "nomad_meta_info/common.nomadmetainfo.json",
