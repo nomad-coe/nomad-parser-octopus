@@ -6,10 +6,10 @@ import org.{ json4s => jn }
 import scala.collection.breakOut
 
 object OctopusParser extends SimpleExternalParserGenerator(
-  name = "OrcaParser",
+  name = "OctopusParser",
   parserInfo = jn.JObject(
-    ("name" -> jn.JString("OrcaParser")) ::
-      ("parserId" -> jn.JString("OrcaParser" + lab.OctopusVersionInfo.version)) ::
+    ("name" -> jn.JString("OctopusParser")) ::
+      ("parserId" -> jn.JString("OctopusParser" + lab.OctopusVersionInfo.version)) ::
       ("versionInfo" -> jn.JObject(
         ("nomadCoreVersion" -> jn.JObject(lab.NomadCoreVersionInfo.toMap.map {
           case (k, v) => k -> jn.JString(v.toString)
