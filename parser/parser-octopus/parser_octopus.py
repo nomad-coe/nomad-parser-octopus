@@ -54,6 +54,24 @@ sm_get_oct_energy_unit = SM(r'Eigenvalues\s*\[(H|eV)\]',
                             adHoc=adhoc_register_octopus_energy_unit,
                             required=True)
 
+sm_kpoints = SM(r'\**\s*Brillouin zone sampling\s* \**',
+                name='brillouin zone',
+                required=False,
+                sections=['section_eigenvalues'],
+                subMatchers=[
+                    SM(r'Number of symmetry-reduced k-points\s*=\s*'
+                       r'(?P<number_of_eigenvalues_kpoints>%s)' % i_num,
+                       name='nkpts'),
+                    SM(r'List of k-points:',
+                       name='kpts header'),
+                    SM(r'\s*%(i)s\s*%(kpt)s\s*%(kpt)s\s*%(kpt)s\s*%(f)s'
+                       % dict(i=i_num, f=f_num,
+                              kpt=numpattern('eigenvalues_kpoints')),
+                       name='kpt',
+                       repeats=True),
+                    SM(r'\*+',
+                       name='end')
+                ])
 
 sm_eig_occ = SM(r'\s*#st\s*Spin\s*Eigenvalue\s*Occupation',
                 name='eig_occ_columns',
@@ -94,6 +112,7 @@ mainFileDescription = SM(
     subFlags=SM.SubFlags.Sequenced,
     subMatchers=[
         sm_get_oct_energy_unit,
+        #sm_kpoints,
         sm_eig_occ,
         sm_energy,
     ])
