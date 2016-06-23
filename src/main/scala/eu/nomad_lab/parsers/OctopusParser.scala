@@ -25,7 +25,7 @@ object OctopusParser extends SimpleExternalParserGenerator(
   mainFileRe = """\*{32} Grid \*{32}
 Simulation Box:
 """.r,
-  cmd = Seq(DefaultPythonInterpreter.python2Exe(), "${envDir}/parsers/octopus/parser/parser-octopus/parser_octopus.py",
+  cmd = Seq(DefaultPythonInterpreter.pythonExe(), "${envDir}/parsers/octopus/parser/parser-octopus/parser_octopus.py",
     "--uri", "${mainFileUri}", "${mainFilePath}"),
   resList = Seq(
     "parser-octopus/parser_octopus.py",
