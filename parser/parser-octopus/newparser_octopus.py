@@ -17,10 +17,10 @@ from nomadcore.unit_conversion.unit_conversion import convert_unit, \
 """This is the Octopus parser.
 
 It has to parse many files:
- * input file, inp (ASE does this)
- * output file, static/info (SimpleParser)
+ * input file, 'inp' (ASE does this)
+ * output file, 'static/info' (SimpleParser)
    - similar file or files for other calculation modes
- * anything written to stdout (no reliable path) (SimpleParser)
+ * anything written to stdout (this file could have any name) (SimpleParser)
    - program output can be cooking recipes ("parse *all* outputs")
  * geometry input file, if specified in 'inp'
    - ASE takes care of that
@@ -41,6 +41,7 @@ OCT_LENGTH_UNIT_NAME = 'usrOctLengthUnit'
 
 metaInfoPath = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)),"../../../../nomad-meta-info/meta_info/nomad_meta_info/octopus.nomadmetainfo.json"))
 metaInfoEnv, warnings = loadJsonFile(filePath = metaInfoPath, dependencyLoader = None, extraArgsHandling = InfoKindEl.ADD_EXTRA_ARGS, uri = None)
+
 
 parserInfo = {
   "name": "parser_octopus",
@@ -141,8 +142,8 @@ def register_units(kwargs):
     register_userdefined_quantity(OCT_ENERGY_UNIT_NAME, energy_unit)
     register_userdefined_quantity(OCT_LENGTH_UNIT_NAME, length_unit)
 
+
 def register_octopus_keywords(pew, category, kwargs):
-    return # XXXXXXXXXXXXXX enable
     for keyword in kwargs:
         # How do we get the metadata type?
         pew.addValue('x_octopus_%s_%s' % (category, keyword),
@@ -209,13 +210,12 @@ def parse(fname):
             pew.addArrayValues('atom_labels',
                                np.array(atoms.get_chemical_symbols()))
             pew.addArrayValues('atom_positions',
-                               cu(atoms.get_positions(), 'eV'))
+                               convert_unit(atoms.get_positions(), 'angstrom'))
             pew.addArrayValues('configuration_periodic_dimensions',
                                np.array(atoms.pbc))
         with open_section('section_single_configuration_calculation'):
             with open_section('section_method'):
                 pew.addValue('number_of_spin_channels', nspins)
-                #pew.addValue('calculation_method', XXX)
                 #pew.addValue('total_charge', XXX)
                 oct_theory_level = kwargs.get('theorylevel', 'dft')
 
