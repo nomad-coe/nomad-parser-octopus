@@ -1,155 +1,275 @@
-from builtins import object
-import logging
-import setup_paths
-from nomadcore.simple_parser import mainFunction, SimpleMatcher as SM
-from nomadcore.local_meta_info import loadJsonFile, InfoKindEl
-from nomadcore.unit_conversion.unit_conversion \
-    import register_userdefined_quantity
-import os, sys, json
+from __future__ import print_function
+import os
+import sys
+from glob import glob
+from contextlib import contextmanager
 
+import numpy as np
+import ase.calculators.octopus as aseoct
+
+import setup_paths
+from nomadcore.local_meta_info import loadJsonFile, InfoKindEl
+from nomadcore.parser_backend import JsonParseEventsWriterBackend
+from nomadcore.unit_conversion.unit_conversion import convert_unit, \
+    register_userdefined_quantity
+
+
+"""This is the Octopus parser.
+
+It has to parse many files:
+ * input file, 'inp' (ASE does this)
+ * output file, 'static/info' (SimpleParser)
+   - similar file or files for other calculation modes
+ * anything written to stdout (this file could have any name) (SimpleParser)
+   - program output can be cooking recipes ("parse *all* outputs")
+ * geometry input file, if specified in 'inp'
+   - ASE takes care of that
+ * output density/potential/etc. if written to files
+   - cube
+   - xcrysden
+   - xyz
+   - other candidates: vtk, etsf
+
+There are more output formats but they are non-standard, or for
+debugging, not commonly used.  We will only implement support for
+those if many uploaded calculations contain those formats.  I think it
+is largely irrelevant.
+"""
 
 OCT_ENERGY_UNIT_NAME = 'usrOctEnergyUnit'
+OCT_LENGTH_UNIT_NAME = 'usrOctLengthUnit'
 
-
-f_num = r'[-+]?\d*\.\d*'
-e_num = r'[-+\d.EeDd]*'
-i_num = r'[-+\d]*'
-
-
-def numpattern(id, unit=None, pattern=f_num):
-    if unit is None:
-        pat = r'(?P<%(id)s>%(pattern)s)'
-    else:
-        pat = r'(?P<%(id)s__%(unit)s>%(pattern)s)'
-    return pat % dict(id=id, unit=unit, pattern=pattern)
-
-
-# Match lines like: "      Total    =     -7.05183\n"
-def oct_energy_sm(octname, nomadname):
-    pattern = (r'\s*%(octname)s\s*=\s*%(pattern)s'
-               % dict(octname=octname,
-                      pattern=numpattern(nomadname,
-                                         unit='hartree'))) # XXXXXXXXXXXX
-    #print 'oct energy sm', pattern
-    return SM(pattern,
-              name=octname)
-
-def adhoc_register_octopus_energy_unit(parser):
-
-    #print 'GRRRRRRRRRRRRRRRRRRR'
-    line = parser.fIn.readline()
-    unit = line.rsplit('[', 2)[1].split(']', 2)[0]
-    if unit == 'H':
-        oct_energy_unit = 'hartree'
-    else:
-        assert unit == 'eV'
-        oct_energy_unit = 'eV'
-    register_userdefined_quantity(OCT_ENERGY_UNIT_NAME, oct_energy_unit)
-
-
-sm_get_oct_energy_unit = SM(r'Eigenvalues\s*\[(H|eV)\]',
-                            forwardMatch=True,
-                            weak=True,
-                            name='define_energy_unit',
-                            adHoc=adhoc_register_octopus_energy_unit,
-                            required=True)
-
-sm_kpoints = SM(r'\**\s*Brillouin zone sampling\s* \**',
-                name='brillouin zone',
-                required=False,
-                sections=['section_eigenvalues'],
-                subMatchers=[
-                    SM(r'Number of symmetry-reduced k-points\s*=\s*'
-                       r'(?P<number_of_eigenvalues_kpoints>%s)' % i_num,
-                       name='nkpts'),
-                    SM(r'List of k-points:',
-                       name='kpts header'),
-                    SM(r'\s*%(i)s\s*%(kpt)s\s*%(kpt)s\s*%(kpt)s\s*%(f)s'
-                       % dict(i=i_num, f=f_num,
-                              kpt=numpattern('eigenvalues_kpoints')),
-                       name='kpt',
-                       repeats=True),
-                    SM(r'\*+',
-                       name='end')
-                ])
-
-sm_eig_occ = SM(r'\s*#st\s*Spin\s*Eigenvalue\s*Occupation',
-                name='eig_occ_columns',
-                sections=['section_eigenvalues'],
-                required=True,
-                subMatchers=[ # TODO spin directions
-                    SM(r'\s*\d+\s*..\s*%(eig)s\s*%(occ)s'
-                       % dict(eig=numpattern('eigenvalues_values',
-                                             OCT_ENERGY_UNIT_NAME),
-                              occ=numpattern('eigenvalues_occupation')),
-                       required=True,
-                       repeats=True,
-                       name='eig_occ_line'),
-                    SM(r'\s*', name='whitespace')
-                ])
-
-
-sm_energy = SM(r'Energy \[(H|eV)\]:', required=True, name='energy_header',
-               subMatchers=[
-                   oct_energy_sm('Total', 'energy_total'),
-                   oct_energy_sm('Free', 'energy_free'),
-                   oct_energy_sm('Eigenvalues', 'energy_sum_eigenvalues'),
-                   oct_energy_sm('Hartree', 'energy_electrostatic'),
-                   oct_energy_sm('Exchange', 'energy_X'),
-                   oct_energy_sm('Correlation', 'energy_C'),
-                   oct_energy_sm('vanderWaals', 'energy_van_der_Waals'),
-                   oct_energy_sm('-TS', 'energy_correction_entropy'),
-                   oct_energy_sm('Kinetic', 'electronic_kinetic_energy')
-               ])
-
-
-mainFileDescription = SM(
-    name='root',
-    weak=True,
-    startReStr='',
-    fixedStartValues={'program_name': 'octopus'},
-    sections=['section_single_configuration_calculation'],
-    subFlags=SM.SubFlags.Sequenced,
-    subMatchers=[
-        sm_get_oct_energy_unit,
-        #sm_kpoints,
-        sm_eig_occ,
-        sm_energy,
-    ])
-
-# loading metadata from nomad-meta-info/meta_info/nomad_meta_info/octopus.nomadmetainfo.json
 metaInfoPath = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)),"../../../../nomad-meta-info/meta_info/nomad_meta_info/octopus.nomadmetainfo.json"))
 metaInfoEnv, warnings = loadJsonFile(filePath = metaInfoPath, dependencyLoader = None, extraArgsHandling = InfoKindEl.ADD_EXTRA_ARGS, uri = None)
+
 
 parserInfo = {
   "name": "parser_octopus",
   "version": "1.0"
 }
 
-class OctopusParserContext(object):
-    """main place to keep the parser status, open ancillary files,..."""
-    def __init__(self):
-        self.scfIterNr = 0
+def read_parser_log(path):
+    exec_kwargs = {}
+    with open(path) as fd:
+        for line in fd:
+            # Skip noise:
+            #if line.endswith('# default\n'):
+            #    continue
+            # Remove comment:
+            line = line.split('#', 1)[0].strip()
+            tokens = line.split('=')
+            try:
+                name, value = tokens
+            except ValueError:
+                continue # Not an assignment
+            name = name.strip().lower()
+            value = value.strip()
 
-    # just examples, you probably want to remove the following two triggers
-    def startedParsing(self, name, parser):
-        pass
+            # Octopus questionably writes this one twice
+            #if name != 'speciesprojectorspherethreshold':
+            exec_kwargs[name] = value
+    return exec_kwargs
 
-    def onClose_section_single_configuration_calculation(self, backend, gIndex, section):
-        """trigger called when section_single_configuration_calculation is closed"""
-        #backend.addValue("", self.scfIterNr)
-        logging.getLogger("nomadcore.parsing").info("closing section_single_configuration_calculation gIndex %d %s", gIndex, section.simpleValues)
-        self.scfIterNr = 0
 
-    def onClose_section_scf_iteration(self, backend, gIndex, section):
-        """trigger called when section_scf_iteration is closed"""
-        logging.getLogger("nomadcore.parsing").info("closing section_scf_iteration bla gIndex %d %s", gIndex, section.simpleValues)
-        self.scfIterNr += 1
+def read_input_file(path):
+    with open(path) as fd:
+        names, values = aseoct.parse_input_file(fd)
+    names = normalize_names(names)
 
-# which values to cache or forward (mapping meta name -> CachingLevel)
-cachingLevelForMetaName = {}
+    kwargs = {}
+    for name, value in zip(names, values):
+        kwargs[name] = value
+    return kwargs
 
-if __name__ == "__main__":
-    mainFunction(mainFileDescription, metaInfoEnv, parserInfo,
-                 cachingLevelForMetaName = cachingLevelForMetaName,
-                 superContext = OctopusParserContext())
+
+def override_keywords(kwargs, parser_log_kwargs):
+    # Some variables we can get from the input file, but they may
+    # contain arithmetic and variable assignments which cannot
+    # just be parsed into a final value.  The output of the
+    # Octopus parser (exec/parser.log) is reduced to pure numbers,
+    # so that is useful, except when the variable was a name (such
+    # as an eigensolver).  In that case we should definitely not
+    # rely on the number!  We will take some variables from the
+    # exec/parser.log but most will just be verbatim from the
+    # input file whether they can be parsed or not.
+    exec_override_keywords = set(['radius', 'lsize', 'spacing'])
+
+    outkwargs = kwargs.copy()
+
+    # Now override any relevant keywords:
+    for name in exec_override_keywords:
+        if name in kwargs:
+            if name == 'lsize':
+                lsize = []
+                for i in range(3):
+                    # (This is relatively horrible.  We are looking for
+                    # lines like "Lsize (0, 1) = 5.0" or similar)
+                    lsize_tmp = 'lsize (0, %d)' % i
+                    assert lsize_tmp in parser_log_kwargs
+                    lsize.append(parser_log_kwargs[lsize_tmp])
+                outkwargs[name] = [lsize]
+                continue
+
+            print('Keyword %s with value %s overridden by value '
+                  '%s obtained from parser log'
+                  % (name, kwargs[name], parser_log_kwargs[name]))
+
+            outkwargs[name] = parser_log_kwargs[name]
+    return outkwargs
+
+
+def normalize_names(names):
+    return [name.lower() for name in names]
+
+
+def register_units(kwargs):
+    units = kwargs.get('units', 'atomic').lower()
+    if units == 'atomic':
+        length_unit = 'bohr'
+        energy_unit = 'hartree'
+    elif units == 'ev_angstrom':
+        length_unit = 'angstrom'
+        energy_unit = 'eV'
+    else:
+        raise ValueError('Unknown units: %s' % units)
+
+    if 'unitsinput' in kwargs:
+        raise ValueError('UnitsInput not supported')
+    if 'unitsoutput' in kwargs:
+        raise ValueError('UnitsOutput not supported')
+
+    print('Set units: energy=%s, length=%s' % (energy_unit, length_unit))
+    register_userdefined_quantity(OCT_ENERGY_UNIT_NAME, energy_unit)
+    register_userdefined_quantity(OCT_LENGTH_UNIT_NAME, length_unit)
+
+
+def register_octopus_keywords(pew, category, kwargs):
+    for keyword in kwargs:
+        # How do we get the metadata type?
+        pew.addValue('x_octopus_%s_%s' % (category, keyword),
+                     kwargs[keyword])
+
+def parse(fname):
+    pew = JsonParseEventsWriterBackend(metaInfoEnv)
+
+    # this context manager shamelessly copied from GPAW parser
+    # Where should Python code be put if it is used by multiple parsers?
+    @contextmanager
+    def open_section(name):
+        gid = pew.openSection(name)
+        yield
+        pew.closeSection(name, gid)
+
+    with open_section('section_run'):
+        pew.addValue('program_name', 'Octopus')
+        print()
+
+        staticdirname, _basefname = os.path.split(fname)
+        dirname, _static = os.path.split(staticdirname)
+        inp_path = os.path.join(dirname, 'inp')
+        parser_log_path = os.path.join(dirname, 'exec', 'parser.log')
+
+        print('Read Octopus keywords from input file %s' % inp_path)
+        kwargs = read_input_file(inp_path)
+        register_octopus_keywords(pew, 'input', kwargs)
+
+        print('Read processed Octopus keywords from octparse logfile %s'
+              % parser_log_path)
+        parser_log_kwargs = read_parser_log(parser_log_path)
+        register_octopus_keywords(pew, 'parserlog', parser_log_kwargs)
+
+        print('Override certain keywords with processed keywords')
+        kwargs = override_keywords(kwargs, parser_log_kwargs)
+
+        register_units(kwargs)
+
+        print('Read as ASE calculator')
+        calc = aseoct.Octopus(dirname)
+        atoms = calc.get_atoms()
+
+        #with open_section('section_basis_set_cell_dependent'):
+            # XXX FIXME spacing can very rarely be 3 numbers!
+            # uuh there is no meaningful way to set grid spacing
+        #    pass
+        cubefiles = glob('staticdirname/*.cube')
+        cubefiles.sort()
+
+        nbands = calc.get_number_of_bands()
+        nspins = calc.get_number_of_spins()
+        nkpts = len(calc.get_k_point_weights())
+
+        with open_section('section_system'):
+            # The Atoms object will always have a cell, even if it was not
+            # used in the Octopus calculation!  Thus, to be more honest,
+            # we re-extract the cell at a level where we can distinguish:
+            cell, _unused = aseoct.kwargs2cell(kwargs)
+            if cell is not None:
+                pew.addArrayValues('simulation_cell', cell)
+
+            # XXX FIXME atoms can be labeled in ways not compatible with ASE.
+            pew.addArrayValues('atom_labels',
+                               np.array(atoms.get_chemical_symbols()))
+            pew.addArrayValues('atom_positions',
+                               convert_unit(atoms.get_positions(), 'angstrom'))
+            pew.addArrayValues('configuration_periodic_dimensions',
+                               np.array(atoms.pbc))
+        with open_section('section_single_configuration_calculation'):
+            with open_section('section_method'):
+                pew.addValue('number_of_spin_channels', nspins)
+                #pew.addValue('total_charge', XXX)
+                oct_theory_level = kwargs.get('theorylevel', 'dft')
+
+                theory_levels = dict(#independent_particles='',
+                                     #hartree='',
+                                     #hartree_fock='',
+                                     dft='DFT')
+                                     #classical='',
+                                     #rdmft='')
+                # TODO how do we warn if we get an unexpected theory level?
+                nomad_theory_level = theory_levels[oct_theory_level]
+
+                pew.addValue('electronic_structure_method', 'DFT')
+
+                # XXXXXXXXXXXX read XC functional from text output instead
+                if oct_theory_level == 'dft':
+                    ndim = int(kwargs.get('dimensions', 3))
+                    assert ndim in range(1, 4), ndim
+                    default_xc = ['lda_x_1d + lda_c_1d_csc',
+                                  'lda_x_2d + lda_c_2d_amgb',
+                                  'lda_x + lda_c_pz_mod'][ndim - 1]
+                    pew.addValue('XC_functional',
+                                 kwargs.get('xcfunctional', default_xc))
+
+                # atom_positions
+                #section_frame_sequence ######### only enc
+                #XC_functional_name
+                #simulation_cell
+                #section_system
+                #program_version
+                #section_method
+                #atom_labels
+                #program_basis_set_type
+                #section_XC_functionals
+                #configuration_periodic_dimensions
+                #section_sampling_method  ######### only enc
+                # Convergence parameters?
+
+            with open_section('section_eigenvalues'):
+                pew.addValue('eigenvalues_kind', 'normal')  # XXX huh?
+
+                eig = np.zeros((nspins, nkpts, nbands))
+                occ = np.zeros((nspins, nkpts, nbands))
+
+                for s in range(nspins):
+                    for k in range(nkpts):
+                        eig[s, k, :] = calc.get_eigenvalues(kpt=k, spin=s)
+                        occ[s, k, :] = calc.get_occupation_numbers(kpt=k,
+                                                                   spin=s)
+                pew.addArrayValues('eigenvalues_values',
+                                   convert_unit(eig, 'eV'))
+                pew.addArrayValues('eigenvalues_occupations', occ)
+
+
+if __name__ == '__main__':
+    fname = sys.argv[1]
+    parse(fname)
