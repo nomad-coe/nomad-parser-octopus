@@ -13,6 +13,8 @@ from nomadcore.parser_backend import JsonParseEventsWriterBackend
 from nomadcore.unit_conversion.unit_conversion import convert_unit, \
     register_userdefined_quantity
 
+from octopus_info_parser import parse_infofile
+from octopus_logfile_parser import parse_logfile
 
 """This is the Octopus parser.
 
@@ -36,11 +38,28 @@ those if many uploaded calculations contain those formats.  I think it
 is largely irrelevant.
 """
 
+
+def normalize_names(names):
+    return [name.lower() for name in names]
+
+
 OCT_ENERGY_UNIT_NAME = 'usrOctEnergyUnit'
 OCT_LENGTH_UNIT_NAME = 'usrOctLengthUnit'
 
 metaInfoPath = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)),"../../../../nomad-meta-info/meta_info/nomad_meta_info/octopus.nomadmetainfo.json"))
-metaInfoEnv, warnings = loadJsonFile(filePath = metaInfoPath, dependencyLoader = None, extraArgsHandling = InfoKindEl.ADD_EXTRA_ARGS, uri = None)
+metaInfoEnv, warnings = loadJsonFile(filePath=metaInfoPath,
+                                     dependencyLoader=None,
+                                     extraArgsHandling=InfoKindEl.ADD_EXTRA_ARGS,
+                                     uri=None)
+
+# Dictionary of all meta info:
+metaInfoKinds = metaInfoEnv.infoKinds.copy()
+all_metadata_names = list(metaInfoKinds.keys())
+normalized2real = dict(zip(normalize_names(all_metadata_names), all_metadata_names))
+# We need access to this information because we want/need to dynamically convert
+# extracted metadata to its correct type.  Thus we need to know the type.
+# Also since input is case insensitive, we need to convert normalized (lowercase)
+# metadata names to their real names which are normally CamelCase.
 
 
 parserInfo = {
@@ -52,9 +71,6 @@ def read_parser_log(path):
     exec_kwargs = {}
     with open(path) as fd:
         for line in fd:
-            # Skip noise:
-            #if line.endswith('# default\n'):
-            #    continue
             # Remove comment:
             line = line.split('#', 1)[0].strip()
             tokens = line.split('=')
@@ -65,6 +81,10 @@ def read_parser_log(path):
             name = name.strip().lower()
             value = value.strip()
 
+            if ' ' in name:
+                # Not a real name
+                continue
+                #print(name)
             # Octopus questionably writes this one twice
             #if name != 'speciesprojectorspherethreshold':
             exec_kwargs[name] = value
@@ -82,7 +102,24 @@ def read_input_file(path):
     return kwargs
 
 
-def override_keywords(kwargs, parser_log_kwargs):
+def is_octopus_logfile(fname):
+    fd = open(fname)
+    for lineno in range(20):
+        line = fd.next()
+        if '|0) ~ (0) |' in line:  # Eyes from Octopus logo
+            return True
+    return False
+
+
+def find_octopus_logfile(dirname):
+    allfnames = glob('%s/*' % dirname)
+    for fname in allfnames:
+        if os.path.isfile(fname) and is_octopus_logfile(fname):
+            return fname
+    return None
+
+
+def override_keywords(kwargs, parser_log_kwargs, fd):
     # Some variables we can get from the input file, but they may
     # contain arithmetic and variable assignments which cannot
     # just be parsed into a final value.  The output of the
@@ -92,7 +129,9 @@ def override_keywords(kwargs, parser_log_kwargs):
     # rely on the number!  We will take some variables from the
     # exec/parser.log but most will just be verbatim from the
     # input file whether they can be parsed or not.
-    exec_override_keywords = set(['radius', 'lsize', 'spacing'])
+    exec_override_keywords = set(['radius',
+                                  #'lsize',
+                                  'spacing'])
 
     outkwargs = kwargs.copy()
 
@@ -112,17 +151,14 @@ def override_keywords(kwargs, parser_log_kwargs):
 
             print('Keyword %s with value %s overridden by value '
                   '%s obtained from parser log'
-                  % (name, kwargs[name], parser_log_kwargs[name]))
+                  % (name, kwargs[name], parser_log_kwargs[name]),
+                  file=fd)
 
             outkwargs[name] = parser_log_kwargs[name]
     return outkwargs
 
 
-def normalize_names(names):
-    return [name.lower() for name in names]
-
-
-def register_units(kwargs):
+def register_units(kwargs, fd):
     units = kwargs.get('units', 'atomic').lower()
     if units == 'atomic':
         length_unit = 'bohr'
@@ -138,19 +174,43 @@ def register_units(kwargs):
     if 'unitsoutput' in kwargs:
         raise ValueError('UnitsOutput not supported')
 
-    print('Set units: energy=%s, length=%s' % (energy_unit, length_unit))
+    print('Set units: energy=%s, length=%s' % (energy_unit, length_unit),
+          file=fd)
     register_userdefined_quantity(OCT_ENERGY_UNIT_NAME, energy_unit)
     register_userdefined_quantity(OCT_LENGTH_UNIT_NAME, length_unit)
 
 
-def register_octopus_keywords(pew, category, kwargs):
-    for keyword in kwargs:
-        # How do we get the metadata type?
-        pew.addValue('x_octopus_%s_%s' % (category, keyword),
-                     kwargs[keyword])
+metadata_dtypes = {'b': bool,
+                   'C': str,
+                   'f': float}  # Integer?
 
-def parse(fname):
-    pew = JsonParseEventsWriterBackend(metaInfoEnv)
+
+# Convert (<normalized name>, <extracted string>) into
+# (<real metadata name>, <value of correct type>)
+def regularize_metadata_entry(normalized_name, value):
+    realname = normalized2real[normalized_name]
+    assert realname in metaInfoEnv, 'No such metadata: %s' % realname
+    metainfo = metaInfoEnv[realname]
+    dtype = metainfo['dtypeStr']
+    converted_value = metadata_dtypes[dtype](value)
+    return realname, converted_value
+
+
+def register_octopus_keywords(pew, category, kwargs):
+    skip = set(['mixingpreconditioner', 'mixinterval'])
+    for keyword in kwargs:
+        if keyword in skip:  # XXXX
+            continue
+        # How do we get the metadata type?
+        normalized_name = 'x_octopus_%s_%s' % (category, keyword)
+        name, value = regularize_metadata_entry(normalized_name, kwargs[keyword])
+        pew.addValue(name, value)
+
+
+def parse(fname, fd):
+    # fname refers to the static/info file.
+    pew = JsonParseEventsWriterBackend(metaInfoEnv,
+                                       fileOut=open('json-writer.log', 'w'))
 
     # this context manager shamelessly copied from GPAW parser
     # Where should Python code be put if it is used by multiple parsers?
@@ -162,28 +222,29 @@ def parse(fname):
 
     with open_section('section_run'):
         pew.addValue('program_name', 'Octopus')
-        print()
+        print(file=fd)
 
         staticdirname, _basefname = os.path.split(fname)
         dirname, _static = os.path.split(staticdirname)
         inp_path = os.path.join(dirname, 'inp')
         parser_log_path = os.path.join(dirname, 'exec', 'parser.log')
 
-        print('Read Octopus keywords from input file %s' % inp_path)
+        print('Read Octopus keywords from input file %s' % inp_path,
+              file=fd)
         kwargs = read_input_file(inp_path)
         register_octopus_keywords(pew, 'input', kwargs)
 
         print('Read processed Octopus keywords from octparse logfile %s'
-              % parser_log_path)
+              % parser_log_path, file=fd)
         parser_log_kwargs = read_parser_log(parser_log_path)
         register_octopus_keywords(pew, 'parserlog', parser_log_kwargs)
 
-        print('Override certain keywords with processed keywords')
-        kwargs = override_keywords(kwargs, parser_log_kwargs)
+        print('Override certain keywords with processed keywords', file=fd)
+        kwargs = override_keywords(kwargs, parser_log_kwargs, fd)
 
-        register_units(kwargs)
+        register_units(kwargs, fd)
 
-        print('Read as ASE calculator')
+        print('Read as ASE calculator', file=fd)
         calc = aseoct.Octopus(dirname)
         atoms = calc.get_atoms()
 
@@ -198,6 +259,18 @@ def parse(fname):
         nspins = calc.get_number_of_spins()
         nkpts = len(calc.get_k_point_weights())
 
+        print('Parse info file using SimpleMatcher', file=fd)
+        parse_infofile(metaInfoEnv, pew, fname)
+
+        logfile = find_octopus_logfile(dirname)
+        if logfile is None:
+            print('No stdout logfile found', file=fd)
+        else:
+            print('Found stdout logfile %s' % logfile, file=fd)
+            print('Parse logfile using SimpleMatcher', file=fd)
+            parse_logfile(metaInfoEnv, pew, logfile)
+
+        print('Add parsed values', file=fd)
         with open_section('section_system'):
             # The Atoms object will always have a cell, even if it was not
             # used in the Octopus calculation!  Thus, to be more honest,
@@ -216,7 +289,8 @@ def parse(fname):
         with open_section('section_single_configuration_calculation'):
             with open_section('section_method'):
                 pew.addValue('number_of_spin_channels', nspins)
-                #pew.addValue('total_charge', XXX)
+                pew.addValue('total_charge',
+                             float(parser_log_kwargs['excesscharge']))
                 oct_theory_level = kwargs.get('theorylevel', 'dft')
 
                 theory_levels = dict(#independent_particles='',
@@ -237,25 +311,16 @@ def parse(fname):
                     default_xc = ['lda_x_1d + lda_c_1d_csc',
                                   'lda_x_2d + lda_c_2d_amgb',
                                   'lda_x + lda_c_pz_mod'][ndim - 1]
-                    pew.addValue('XC_functional',
-                                 kwargs.get('xcfunctional', default_xc))
+                    xcfunctional = kwargs.get('xcfunctional', default_xc)
+                    xcfunctional = ''.join(xcfunctional.split()).upper()
+                    with open_section('section_XC_functionals'):
+                        pew.addValue('XC_functional_name', xcfunctional)
 
-                # atom_positions
-                #section_frame_sequence ######### only enc
-                #XC_functional_name
-                #simulation_cell
-                #section_system
-                #program_version
-                #section_method
-                #atom_labels
-                #program_basis_set_type
-                #section_XC_functionals
-                #configuration_periodic_dimensions
-                #section_sampling_method  ######### only enc
                 # Convergence parameters?
 
             with open_section('section_eigenvalues'):
-                pew.addValue('eigenvalues_kind', 'normal')  # XXX huh?
+                if kwargs.get('theorylevel', 'dft') == 'dft':
+                    pew.addValue('eigenvalues_kind', 'normal')
 
                 eig = np.zeros((nspins, nkpts, nbands))
                 occ = np.zeros((nspins, nkpts, nbands))
@@ -272,4 +337,6 @@ def parse(fname):
 
 if __name__ == '__main__':
     fname = sys.argv[1]
-    parse(fname)
+    logfname = 'parse.log'
+    with open(logfname, 'w') as fd:
+        parse(fname, fd)
