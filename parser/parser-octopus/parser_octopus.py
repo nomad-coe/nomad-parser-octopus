@@ -63,7 +63,7 @@ normalized2real = dict(zip(normalize_names(all_metadata_names), all_metadata_nam
 # metadata names to their real names which are normally CamelCase.
 
 
-parserInfo = {
+parser_info = {
   "name": "parser_octopus",
   "version": "1.0"
 }
@@ -211,6 +211,7 @@ def register_octopus_keywords(pew, category, kwargs):
 def parse(fname, fd):
     # fname refers to the static/info file.
     pew = JsonParseEventsWriterBackend(metaInfoEnv)
+    pew.startedParsingSession(fname, parser_info)
                                        #fileOut=open('json-writer.log', 'w'))
 
     # this context manager shamelessly copied from GPAW parser
@@ -233,12 +234,13 @@ def parse(fname, fd):
         print('Read Octopus keywords from input file %s' % inp_path,
               file=fd)
         kwargs = read_input_file(inp_path)
-        register_octopus_keywords(pew, 'input', kwargs)
+        #with open_section('x_octopus_input'):
+        #    register_octopus_keywords(pew, 'input', kwargs)
 
         print('Read processed Octopus keywords from octparse logfile %s'
               % parser_log_path, file=fd)
         parser_log_kwargs = read_parser_log(parser_log_path)
-        register_octopus_keywords(pew, 'parserlog', parser_log_kwargs)
+        #register_octopus_keywords(pew, 'parserlog', parser_log_kwargs)
 
         print('Override certain keywords with processed keywords', file=fd)
         kwargs = override_keywords(kwargs, parser_log_kwargs, fd)
@@ -272,7 +274,7 @@ def parse(fname, fd):
         #    parse_logfile(metaInfoEnv, pew, logfile)
 
         print('Add parsed values', file=fd)
-        if 0: # XXXXXXXXXXXXXXX with open_section('section_system'):
+        with open_section('section_system'):
             # The Atoms object will always have a cell, even if it was not
             # used in the Octopus calculation!  Thus, to be more honest,
             # we re-extract the cell at a level where we can distinguish:
@@ -287,7 +289,7 @@ def parse(fname, fd):
                                convert_unit(atoms.get_positions(), 'angstrom'))
             pew.addArrayValues('configuration_periodic_dimensions',
                                np.array(atoms.pbc))
-        if 0: #XXXXXXXXXXXXXXX with open_section('section_single_configuration_calculation'):
+        with open_section('section_single_configuration_calculation'):
             with open_section('section_method'):
                 pew.addValue('number_of_spin_channels', nspins)
                 pew.addValue('total_charge',
@@ -314,14 +316,14 @@ def parse(fname, fd):
                                   'lda_x + lda_c_pz_mod'][ndim - 1]
                     xcfunctional = kwargs.get('xcfunctional', default_xc)
                     xcfunctional = ''.join(xcfunctional.split()).upper()
-                    #with open_section('section_XC_functionals'):
-                    #    pew.addValue('XC_functional_name', xcfunctional)
+                    with open_section('section_XC_functionals'):
+                        pew.addValue('XC_functional_name', xcfunctional)
 
                 # Convergence parameters?
 
-            if 0:#XXXXXXXX with open_section('section_eigenvalues'):
-                #if kwargs.get('theorylevel', 'dft') == 'dft':
-                #    pew.addValue('eigenvalues_kind', 'normal')
+            with open_section('section_eigenvalues'):
+                if kwargs.get('theorylevel', 'dft') == 'dft':
+                    pew.addValue('eigenvalues_kind', 'normal')
 
                 eig = np.zeros((nspins, nkpts, nbands))
                 occ = np.zeros((nspins, nkpts, nbands))
@@ -331,10 +333,10 @@ def parse(fname, fd):
                         eig[s, k, :] = calc.get_eigenvalues(kpt=k, spin=s)
                         occ[s, k, :] = calc.get_occupation_numbers(kpt=k,
                                                                    spin=s)
-                #pew.addArrayValues('eigenvalues_values',
-                #                   convert_unit(eig, 'eV'))
-                #pew.addArrayValues('eigenvalues_occupations', occ)
-
+                pew.addArrayValues('eigenvalues_values',
+                                   convert_unit(eig, 'eV'))
+                pew.addArrayValues('eigenvalues_occupation', occ)
+    pew.finishedParsingSession('ParseSuccess', None)
 
 if __name__ == '__main__':
     fname = sys.argv[1]
