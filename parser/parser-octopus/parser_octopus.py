@@ -5,14 +5,15 @@ from glob import glob
 from contextlib import contextmanager
 
 import numpy as np
-import aseoct
 
 import setup_paths
+
 from nomadcore.local_meta_info import loadJsonFile, InfoKindEl
 from nomadcore.parser_backend import JsonParseEventsWriterBackend
 from nomadcore.unit_conversion.unit_conversion import convert_unit, \
     register_userdefined_quantity
 
+from aseoct import Octopus, parse_input_file, kwargs2cell
 from octopus_info_parser import parse_infofile
 from octopus_logfile_parser import parse_logfile
 
@@ -93,7 +94,7 @@ def read_parser_log(path):
 
 def read_input_file(path):
     with open(path) as fd:
-        names, values = aseoct.parse_input_file(fd)
+        names, values = parse_input_file(fd)
     names = normalize_names(names)
 
     kwargs = {}
@@ -105,7 +106,7 @@ def read_input_file(path):
 def is_octopus_logfile(fname):
     fd = open(fname)
     for lineno in range(20):
-        line = fd.next()
+        line = next(fd)
         if '|0) ~ (0) |' in line:  # Eyes from Octopus logo
             return True
     return False
@@ -209,8 +210,8 @@ def register_octopus_keywords(pew, category, kwargs):
 
 def parse(fname, fd):
     # fname refers to the static/info file.
-    pew = JsonParseEventsWriterBackend(metaInfoEnv,
-                                       fileOut=open('json-writer.log', 'w'))
+    pew = JsonParseEventsWriterBackend(metaInfoEnv)
+                                       #fileOut=open('json-writer.log', 'w'))
 
     # this context manager shamelessly copied from GPAW parser
     # Where should Python code be put if it is used by multiple parsers?
@@ -245,7 +246,7 @@ def parse(fname, fd):
         register_units(kwargs, fd)
 
         print('Read as ASE calculator', file=fd)
-        calc = aseoct.Octopus(dirname, check_keywords=False)
+        calc = Octopus(dirname, check_keywords=False)
         atoms = calc.get_atoms()
 
         #with open_section('section_basis_set_cell_dependent'):
@@ -259,23 +260,23 @@ def parse(fname, fd):
         nspins = calc.get_number_of_spins()
         nkpts = len(calc.get_k_point_weights())
 
-        print('Parse info file using SimpleMatcher', file=fd)
-        parse_infofile(metaInfoEnv, pew, fname)
+        #print('Parse info file using SimpleMatcher', file=fd)
+        #parse_infofile(metaInfoEnv, pew, fname)
 
-        logfile = find_octopus_logfile(dirname)
-        if logfile is None:
-            print('No stdout logfile found', file=fd)
-        else:
-            print('Found stdout logfile %s' % logfile, file=fd)
-            print('Parse logfile using SimpleMatcher', file=fd)
-            parse_logfile(metaInfoEnv, pew, logfile)
+        #logfile = find_octopus_logfile(dirname)
+        #if logfile is None:
+        #    print('No stdout logfile found', file=fd)
+        #else:
+        #    print('Found stdout logfile %s' % logfile, file=fd)
+        #    print('Parse logfile using SimpleMatcher', file=fd)
+        #    parse_logfile(metaInfoEnv, pew, logfile)
 
         print('Add parsed values', file=fd)
-        with open_section('section_system'):
+        if 0: # XXXXXXXXXXXXXXX with open_section('section_system'):
             # The Atoms object will always have a cell, even if it was not
             # used in the Octopus calculation!  Thus, to be more honest,
             # we re-extract the cell at a level where we can distinguish:
-            cell, _unused = aseoct.kwargs2cell(kwargs)
+            cell, _unused = kwargs2cell(kwargs)
             if cell is not None:
                 pew.addArrayValues('simulation_cell', cell)
 
@@ -286,7 +287,7 @@ def parse(fname, fd):
                                convert_unit(atoms.get_positions(), 'angstrom'))
             pew.addArrayValues('configuration_periodic_dimensions',
                                np.array(atoms.pbc))
-        with open_section('section_single_configuration_calculation'):
+        if 0: #XXXXXXXXXXXXXXX with open_section('section_single_configuration_calculation'):
             with open_section('section_method'):
                 pew.addValue('number_of_spin_channels', nspins)
                 pew.addValue('total_charge',
@@ -313,14 +314,14 @@ def parse(fname, fd):
                                   'lda_x + lda_c_pz_mod'][ndim - 1]
                     xcfunctional = kwargs.get('xcfunctional', default_xc)
                     xcfunctional = ''.join(xcfunctional.split()).upper()
-                    with open_section('section_XC_functionals'):
-                        pew.addValue('XC_functional_name', xcfunctional)
+                    #with open_section('section_XC_functionals'):
+                    #    pew.addValue('XC_functional_name', xcfunctional)
 
                 # Convergence parameters?
 
-            with open_section('section_eigenvalues'):
-                if kwargs.get('theorylevel', 'dft') == 'dft':
-                    pew.addValue('eigenvalues_kind', 'normal')
+            if 0:#XXXXXXXX with open_section('section_eigenvalues'):
+                #if kwargs.get('theorylevel', 'dft') == 'dft':
+                #    pew.addValue('eigenvalues_kind', 'normal')
 
                 eig = np.zeros((nspins, nkpts, nbands))
                 occ = np.zeros((nspins, nkpts, nbands))
@@ -330,9 +331,9 @@ def parse(fname, fd):
                         eig[s, k, :] = calc.get_eigenvalues(kpt=k, spin=s)
                         occ[s, k, :] = calc.get_occupation_numbers(kpt=k,
                                                                    spin=s)
-                pew.addArrayValues('eigenvalues_values',
-                                   convert_unit(eig, 'eV'))
-                pew.addArrayValues('eigenvalues_occupations', occ)
+                #pew.addArrayValues('eigenvalues_values',
+                #                   convert_unit(eig, 'eV'))
+                #pew.addArrayValues('eigenvalues_occupations', occ)
 
 
 if __name__ == '__main__':

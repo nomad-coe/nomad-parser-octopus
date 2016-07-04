@@ -30,14 +30,14 @@ class OctopusLogFileParserContext(object):
 
 
 def parse_logfile(metaInfoEnv, pew, fname):
-    with open('logfile-parse.log', 'w') as fd:
-        mainFunction(logFileDescription,
-                     metaInfoEnv,
-                     parserInfo,
-                     outF=fd,
-                     cachingLevelForMetaName={},
-                     superBackend=pew,
-                     superContext=OctopusLogFileParserContext(),
-                     mainFile=fname)
+    #with open('logfile-parse.log', 'w') as fd:
+    mainFunction(logFileDescription,
+                 metaInfoEnv,
+                 parserInfo,
+                 #outF=fd,
+                 cachingLevelForMetaName={},
+                 superBackend=pew,
+                 superContext=OctopusLogFileParserContext(),
+                 mainFile=fname)
         #for key in metaInfoEnv:
         #    print('key', key)

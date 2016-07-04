@@ -80,12 +80,12 @@ class OctopusParserContext(object):
 
 
 def parse_infofile(metaInfoEnv, pew, fname):
-    with open('info-parser.log', 'w') as fd:
-        mainFunction(infoFileDescription,
-                     metaInfoEnv,
-                     parserInfo,
-                     outF=fd,
-                     cachingLevelForMetaName={},
-                     superBackend=pew,
-                     superContext=OctopusParserContext(),
-                     mainFile=fname)
+    #with open('info-parser.log', 'w') as fd:
+    mainFunction(infoFileDescription,
+                 metaInfoEnv,
+                 parserInfo,
+                 #outF=fd,
+                 cachingLevelForMetaName={},
+                 superBackend=pew,
+                 superContext=OctopusParserContext(),
+                 mainFile=fname)

@@ -1,0 +1,16 @@
+Units = ev_angstrom
+%LSize
+ 0.5 | 0.5 | 0.5
+%
+
+PeriodicDimensions = 0
+Output = density + forces
+OutputFormat = xcrysden
+CalculationMode = gs
+stdout = "stdout.log"
+
+%Coordinates
+ 'O' | -0.5 | -0.5 | -0.38073800000000002
+ 'H' | -0.5 | 0.263239 | -0.977047
+ 'H' | -0.5 | -1.263239 | -0.977047
+%

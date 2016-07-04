@@ -26,9 +26,10 @@ object OctopusParser extends SimpleExternalParserGenerator(
 Simulation Box:
 """.r,
   cmd = Seq(DefaultPythonInterpreter.pythonExe(), "${envDir}/parsers/octopus/parser/parser-octopus/parser_octopus.py",
-    "--uri", "${mainFileUri}", "${mainFilePath}"),
+    "${mainFilePath}"),
   resList = Seq(
     "parser-octopus/parser_octopus.py",
+    "parser-octopus/aseoct.py",
     "parser-octopus/octopus_logfile_parser.py",
     "parser-octopus/generate-octopus-json.py",
     "parser-octopus/util.py",
