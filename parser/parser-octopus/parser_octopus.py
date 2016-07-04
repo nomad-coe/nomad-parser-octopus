@@ -5,7 +5,7 @@ from glob import glob
 from contextlib import contextmanager
 
 import numpy as np
-import ase.calculators.octopus as aseoct
+import aseoct
 
 import setup_paths
 from nomadcore.local_meta_info import loadJsonFile, InfoKindEl
@@ -245,7 +245,7 @@ def parse(fname, fd):
         register_units(kwargs, fd)
 
         print('Read as ASE calculator', file=fd)
-        calc = aseoct.Octopus(dirname)
+        calc = aseoct.Octopus(dirname, check_keywords=False)
         atoms = calc.get_atoms()
 
         #with open_section('section_basis_set_cell_dependent'):
