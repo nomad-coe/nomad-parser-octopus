@@ -262,16 +262,16 @@ def parse(fname, fd):
         nspins = calc.get_number_of_spins()
         nkpts = len(calc.get_k_point_weights())
 
-        #print('Parse info file using SimpleMatcher', file=fd)
-        #parse_infofile(metaInfoEnv, pew, fname)
+        print('Parse info file using SimpleMatcher', file=fd)
+        parse_infofile(metaInfoEnv, pew, fname)
 
-        #logfile = find_octopus_logfile(dirname)
-        #if logfile is None:
-        #    print('No stdout logfile found', file=fd)
-        #else:
-        #    print('Found stdout logfile %s' % logfile, file=fd)
-        #    print('Parse logfile using SimpleMatcher', file=fd)
-        #    parse_logfile(metaInfoEnv, pew, logfile)
+        logfile = find_octopus_logfile(dirname)
+        if logfile is None:
+            print('No stdout logfile found', file=fd)
+        else:
+            print('Found stdout logfile %s' % logfile, file=fd)
+            print('Parse logfile using SimpleMatcher', file=fd)
+            parse_logfile(metaInfoEnv, pew, logfile)
 
         print('Add parsed values', file=fd)
         with open_section('section_system'):
@@ -289,6 +289,7 @@ def parse(fname, fd):
                                convert_unit(atoms.get_positions(), 'angstrom'))
             pew.addArrayValues('configuration_periodic_dimensions',
                                np.array(atoms.pbc))
+
         with open_section('section_single_configuration_calculation'):
             with open_section('section_method'):
                 pew.addValue('number_of_spin_channels', nspins)

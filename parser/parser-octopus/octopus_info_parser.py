@@ -1,13 +1,15 @@
+from __future__ import print_function
 from builtins import object
 import logging
 import setup_paths
-from nomadcore.simple_parser import mainFunction, SimpleMatcher as SM
+from nomadcore.simple_parser import SimpleMatcher as SM
 from nomadcore.local_meta_info import loadJsonFile, InfoKindEl
 from nomadcore.unit_conversion.unit_conversion \
     import register_userdefined_quantity
 import os, sys, json
 
-from util import OCT_ENERGY_UNIT_NAME, f_num, i_num, numpattern, integer
+from util import OCT_ENERGY_UNIT_NAME, f_num, i_num, numpattern, integer,\
+    parse_file_without_decorations
 
 # Match lines like: "      Total    =     -7.05183\n"
 def oct_energy_sm(octname, nomadname):
@@ -78,14 +80,6 @@ class OctopusParserContext(object):
         #logging.getLogger("nomadcore.parsing").info("closing section_scf_iteration bla gIndex %d %s", gIndex, section.simpleValues)
         #self.scfIterNr += 1
 
-
-def parse_infofile(metaInfoEnv, pew, fname):
-    #with open('info-parser.log', 'w') as fd:
-    mainFunction(infoFileDescription,
-                 metaInfoEnv,
-                 parserInfo,
-                 #outF=fd,
-                 cachingLevelForMetaName={},
-                 superBackend=pew,
-                 superContext=OctopusParserContext(),
-                 mainFile=fname)
+def parse_infofile(meta_info_env, pew, fname):
+    parse_file_without_decorations(pew, meta_info_env, infoFileDescription,
+                                   parserInfo, OctopusParserContext(), fname)

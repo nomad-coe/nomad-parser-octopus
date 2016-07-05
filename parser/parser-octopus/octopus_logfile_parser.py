@@ -1,12 +1,13 @@
 from nomadcore.simple_parser import mainFunction, SimpleMatcher as SM
 
-from util import numpattern, i_num, f_num, e_num, word, integer
+from util import numpattern, i_num, f_num, e_num, word, integer, \
+    parse_file_without_decorations
+
 
 parserInfo = {
   "name": "logfile_parser_octopus",
   "version": "1.0"
 }
-
 
 
 logFileDescription = SM(
@@ -19,8 +20,6 @@ logFileDescription = SM(
     subMatchers=[
         SM(r'Version\s*:\s*%s' % word('program_version')),
         SM(r'Revision\s*:\s*%s' % integer('x_octopus_log_svn_revision')),
-        #SM(r'Input: [SmearingFunction = %s]' % word(''))
-        # Grr.  But we have to convert semi_conducting to some other word.
     ]
 )
 
@@ -29,15 +28,7 @@ class OctopusLogFileParserContext(object):
         pass
 
 
-def parse_logfile(metaInfoEnv, pew, fname):
-    #with open('logfile-parse.log', 'w') as fd:
-    mainFunction(logFileDescription,
-                 metaInfoEnv,
-                 parserInfo,
-                 #outF=fd,
-                 cachingLevelForMetaName={},
-                 superBackend=pew,
-                 superContext=OctopusLogFileParserContext(),
-                 mainFile=fname)
-        #for key in metaInfoEnv:
-        #    print('key', key)
+def parse_logfile(meta_info_env, pew, fname):
+    parse_file_without_decorations(pew, meta_info_env, logFileDescription,
+                                   parserInfo, OctopusLogFileParserContext(),
+                                   fname)
