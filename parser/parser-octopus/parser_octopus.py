@@ -106,8 +106,9 @@ def read_input_file(path):
 
 def is_octopus_logfile(fname):
     fd = open(fname)
-    for lineno in range(20):
-        line = next(fd)
+    for n, line in enumerate(fd):
+        if n > 20:
+            break
         if '|0) ~ (0) |' in line:  # Eyes from Octopus logo
             return True
     return False
@@ -210,6 +211,13 @@ def register_octopus_keywords(pew, category, kwargs):
 
 
 def parse(fname, fd):
+    # Look for files before we create some of our own files for logging etc.:
+    staticdirname, _basefname = os.path.split(fname)
+    dirname, _static = os.path.split(staticdirname)
+    inp_path = os.path.join(dirname, 'inp')
+    parser_log_path = os.path.join(dirname, 'exec', 'parser.log')
+    logfile = find_octopus_logfile(dirname)
+
     # fname refers to the static/info file.
     pew = JsonParseEventsWriterBackend(metaInfoEnv)
     pew.startedParsingSession(fname, parser_info)
@@ -226,11 +234,6 @@ def parse(fname, fd):
     with open_section('section_run'):
         pew.addValue('program_name', 'Octopus')
         print(file=fd)
-
-        staticdirname, _basefname = os.path.split(fname)
-        dirname, _static = os.path.split(staticdirname)
-        inp_path = os.path.join(dirname, 'inp')
-        parser_log_path = os.path.join(dirname, 'exec', 'parser.log')
 
         print('Read Octopus keywords from input file %s' % inp_path,
               file=fd)
@@ -263,13 +266,12 @@ def parse(fname, fd):
         nspins = calc.get_number_of_spins()
         nkpts = len(calc.get_k_point_weights())
 
-        logfile = find_octopus_logfile(dirname)
         if logfile is None:
             print('No stdout logfile found', file=fd)
         else:
             print('Found stdout logfile %s' % logfile, file=fd)
-            #print('Parse logfile using SimpleMatcher', file=fd)
-            #parse_logfile(metaInfoEnv, pew, logfile)
+            print('Parse logfile %s' % logfile, file=fd)
+            parse_logfile(metaInfoEnv, pew, logfile)
 
         print('Add parsed values', file=fd)
         with open_section('section_system'):
@@ -289,8 +291,8 @@ def parse(fname, fd):
                                np.array(atoms.pbc))
 
         with open_section('section_single_configuration_calculation'):
-            #print('Parse info file using SimpleMatcher', file=fd)
-            #parse_infofile(metaInfoEnv, pew, fname)
+            print('Parse info file %s' % fname, file=fd)
+            parse_infofile(metaInfoEnv, pew, fname)
 
             with open_section('section_method'):
                 pew.addValue('number_of_spin_channels', nspins)

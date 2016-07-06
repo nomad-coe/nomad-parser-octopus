@@ -32,8 +32,9 @@ def parse_logfile(meta_info_env, pew, fname):
     # XXX this is just a hack until we decide to do more
     maxlines = 100
     with open(fname) as fd:
-        for i in range(maxlines):
-            line = next(fd)
+        for i, line in enumerate(fd):
+            if i > maxlines:
+                break
             if line.startswith('Version'):
                 version = line.split()[-1]
                 pew.addValue('program_version', version)
