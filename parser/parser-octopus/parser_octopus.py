@@ -268,8 +268,8 @@ def parse(fname, fd):
             print('No stdout logfile found', file=fd)
         else:
             print('Found stdout logfile %s' % logfile, file=fd)
-            print('Parse logfile using SimpleMatcher', file=fd)
-            parse_logfile(metaInfoEnv, pew, logfile)
+            #print('Parse logfile using SimpleMatcher', file=fd)
+            #parse_logfile(metaInfoEnv, pew, logfile)
 
         print('Add parsed values', file=fd)
         with open_section('section_system'):
@@ -289,8 +289,8 @@ def parse(fname, fd):
                                np.array(atoms.pbc))
 
         with open_section('section_single_configuration_calculation'):
-            print('Parse info file using SimpleMatcher', file=fd)
-            parse_infofile(metaInfoEnv, pew, fname)
+            #print('Parse info file using SimpleMatcher', file=fd)
+            #parse_infofile(metaInfoEnv, pew, fname)
 
             with open_section('section_method'):
                 pew.addValue('number_of_spin_channels', nspins)
