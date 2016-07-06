@@ -15,7 +15,7 @@ logFileDescription = SM(
     weak=True,
     startReStr='',
     fixedStartValues={'program_name': 'octopus'},
-    sections=['section_run'],
+    #sections=['section_run'],
     subFlags=SM.SubFlags.Sequenced,
     subMatchers=[
         SM(r'Version\s*:\s*%s' % word('program_version')),
@@ -29,6 +29,21 @@ class OctopusLogFileParserContext(object):
 
 
 def parse_logfile(meta_info_env, pew, fname):
-    parse_file_without_decorations(pew, meta_info_env, logFileDescription,
-                                   parserInfo, OctopusLogFileParserContext(),
-                                   fname)
+    # XXX this is just a hack until we decide to do more
+    maxlines = 100
+    with open(fname) as fd:
+        for i in range(maxlines):
+            line = next(fd)
+            if line.startswith('Version'):
+                version = line.split()[-1]
+                pew.addValue('program_version', version)
+            elif line.startswith('Revision'):
+                revision = line.split()[-1]
+                pew.addValue('x_octopus_log_svn_revision', revision)
+            # XXX more info
+
+
+#def parse_logfile(meta_info_env, pew, fname):
+#    parse_file_without_decorations(pew, meta_info_env, logFileDescription,
+#                                   parserInfo, OctopusLogFileParserContext(),
+#                                   fname)

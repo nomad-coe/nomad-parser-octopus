@@ -5,7 +5,7 @@ import setup_paths
 from nomadcore.simple_parser import SimpleMatcher as SM
 from nomadcore.local_meta_info import loadJsonFile, InfoKindEl
 from nomadcore.unit_conversion.unit_conversion \
-    import register_userdefined_quantity
+    import register_userdefined_quantity, convert_unit
 import os, sys, json
 
 from util import OCT_ENERGY_UNIT_NAME, f_num, i_num, numpattern, integer,\
@@ -80,6 +80,40 @@ class OctopusParserContext(object):
         #logging.getLogger("nomadcore.parsing").info("closing section_scf_iteration bla gIndex %d %s", gIndex, section.simpleValues)
         #self.scfIterNr += 1
 
+#def parse_infofile(meta_info_env, pew, fname):
+#    parse_file_without_decorations(pew, meta_info_env, infoFileDescription,
+#                                   parserInfo, OctopusParserContext(), fname)
+
+
 def parse_infofile(meta_info_env, pew, fname):
-    parse_file_without_decorations(pew, meta_info_env, infoFileDescription,
-                                   parserInfo, OctopusParserContext(), fname)
+    with open(fname) as fd:
+        for line in fd:
+            if line.startswith('SCF converged'):
+                iterations = int(line.split()[-2])
+                pew.addValue('x_octopus_info_scf_converged_iterations',
+                             iterations)
+                break
+        for line in fd:  # Jump down to energies:
+            if line.startswith('Energy ['):
+                octunit = line.strip().split()[-1].strip('[]:')
+                nomadunit = {'eV': 'eV', 'H': 'hartree'}[octunit]
+                break
+
+        names = {'Total': 'energy_total',
+                 'Free': 'energy_free',
+                 'Ion-ion': 'x_octopus_info_energy_ion_ion',
+                 'Eigenvalues': 'energy_sum_eigenvalues',
+                 'Hartree': 'energy_electrostatic',
+                 'Exchange': 'energy_X',
+                 'Correlation': 'energy_C',
+                 'vanderWaals': 'energy_van_der_Waals',
+                 '-TS': 'energy_correction_entropy',
+                 'Kinetic': 'electronic_kinetic_energy'}
+
+        for line in fd:
+            tokens = line.split()
+            if len(tokens) < 3:
+                continue
+            if tokens[0] in names:
+                pew.addValue(names[tokens[0]],
+                             convert_unit(float(tokens[2]), nomadunit))
