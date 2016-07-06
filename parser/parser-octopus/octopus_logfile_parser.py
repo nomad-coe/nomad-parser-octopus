@@ -39,7 +39,8 @@ def parse_logfile(meta_info_env, pew, fname):
                 pew.addValue('program_version', version)
             elif line.startswith('Revision'):
                 revision = line.split()[-1]
-                pew.addValue('x_octopus_log_svn_revision', revision)
+                #pew.addValue('x_octopus_log_svn_revision', revision)
+                # WTF
             # XXX more info
 
 

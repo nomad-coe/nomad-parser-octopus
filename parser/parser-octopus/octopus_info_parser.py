@@ -90,8 +90,8 @@ def parse_infofile(meta_info_env, pew, fname):
         for line in fd:
             if line.startswith('SCF converged'):
                 iterations = int(line.split()[-2])
-                pew.addValue('x_octopus_info_scf_converged_iterations',
-                             iterations)
+                #pew.addValue('x_octopus_info_scf_converged_iterations',
+                #             iterations)
                 break
         for line in fd:  # Jump down to energies:
             if line.startswith('Energy ['):
@@ -101,7 +101,7 @@ def parse_infofile(meta_info_env, pew, fname):
 
         names = {'Total': 'energy_total',
                  'Free': 'energy_free',
-                 'Ion-ion': 'x_octopus_info_energy_ion_ion',
+                 #'Ion-ion': 'x_octopus_info_energy_ion_ion',
                  'Eigenvalues': 'energy_sum_eigenvalues',
                  'Hartree': 'energy_electrostatic',
                  'Exchange': 'energy_X',
@@ -111,9 +111,12 @@ def parse_infofile(meta_info_env, pew, fname):
                  'Kinetic': 'electronic_kinetic_energy'}
 
         for line in fd:
+            if line.startswith('---'):
+                continue
             tokens = line.split()
             if len(tokens) < 3:
-                continue
+                break
+
             if tokens[0] in names:
                 pew.addValue(names[tokens[0]],
                              convert_unit(float(tokens[2]), nomadunit))

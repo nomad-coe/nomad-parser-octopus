@@ -57,6 +57,7 @@ metaInfoEnv, warnings = loadJsonFile(filePath=metaInfoPath,
 metaInfoKinds = metaInfoEnv.infoKinds.copy()
 all_metadata_names = list(metaInfoKinds.keys())
 normalized2real = dict(zip(normalize_names(all_metadata_names), all_metadata_names))
+#assert 'x_octopus_info_scf_converged_iterations' in metaInfoKinds, '\n'.join(list(sorted(metaInfoKinds.keys())))
 # We need access to this information because we want/need to dynamically convert
 # extracted metadata to its correct type.  Thus we need to know the type.
 # Also since input is case insensitive, we need to convert normalized (lowercase)
@@ -262,9 +263,6 @@ def parse(fname, fd):
         nspins = calc.get_number_of_spins()
         nkpts = len(calc.get_k_point_weights())
 
-        print('Parse info file using SimpleMatcher', file=fd)
-        parse_infofile(metaInfoEnv, pew, fname)
-
         logfile = find_octopus_logfile(dirname)
         if logfile is None:
             print('No stdout logfile found', file=fd)
@@ -291,6 +289,9 @@ def parse(fname, fd):
                                np.array(atoms.pbc))
 
         with open_section('section_single_configuration_calculation'):
+            print('Parse info file using SimpleMatcher', file=fd)
+            parse_infofile(metaInfoEnv, pew, fname)
+
             with open_section('section_method'):
                 pew.addValue('number_of_spin_channels', nspins)
                 pew.addValue('total_charge',
