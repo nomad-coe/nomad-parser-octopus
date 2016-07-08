@@ -19,7 +19,7 @@ logFileDescription = SM(
     subFlags=SM.SubFlags.Sequenced,
     subMatchers=[
         SM(r'Version\s*:\s*%s' % word('program_version')),
-        SM(r'Revision\s*:\s*%s' % integer('x_octopus_log_svn_revision')),
+        #SM(r'Revision\s*:\s*%s' % integer('x_octopus_log_svn_revision')),
     ]
 )
 
@@ -39,9 +39,8 @@ def parse_logfile(meta_info_env, pew, fname):
                 version = line.split()[-1]
                 pew.addValue('program_version', version)
             elif line.startswith('Revision'):
-                revision = line.split()[-1]
-                #pew.addValue('x_octopus_log_svn_revision', revision)
-                # WTF
+                revision = int(line.split()[-1])
+                pew.addValue('x_octopus_log_svn_revision', revision)
             # XXX more info
 
 
