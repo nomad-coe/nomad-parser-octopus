@@ -309,7 +309,6 @@ def parse(fname, fd):
 
                 pew.addValue('electronic_structure_method', 'DFT')
 
-                # XXXXXXXXXXXX read XC functional from text output instead
                 if oct_theory_level == 'dft':
                     ndim = int(kwargs.get('dimensions', 3))
                     assert ndim in range(1, 4), ndim
@@ -317,9 +316,10 @@ def parse(fname, fd):
                                   'lda_x_2d + lda_c_2d_amgb',
                                   'lda_x + lda_c_pz_mod'][ndim - 1]
                     xcfunctional = kwargs.get('xcfunctional', default_xc)
-                    xcfunctional = ''.join(xcfunctional.split()).upper()
-                    with open_section('section_XC_functionals'):
-                        pew.addValue('XC_functional_name', xcfunctional)
+                    for functional in xcfunctional.split('+'):
+                        functional = functional.strip().upper()
+                        with open_section('section_XC_functionals'):
+                            pew.addValue('XC_functional_name', functional)
 
                 # Convergence parameters?
 
