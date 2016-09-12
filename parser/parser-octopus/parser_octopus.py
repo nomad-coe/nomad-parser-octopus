@@ -227,7 +227,7 @@ def parse(fname, fd):
     @contextmanager
     def open_section(name):
         gid = pew.openSection(name)
-        yield
+        yield gid
         pew.closeSection(name, gid)
 
     with open_section('section_run'):
@@ -272,7 +272,7 @@ def parse(fname, fd):
             parse_logfile(metaInfoEnv, pew, logfile)
 
         print('Add parsed values', file=fd)
-        with open_section('section_system'):
+        with open_section('section_system') as system_gid:
             # The Atoms object will always have a cell, even if it was not
             # used in the Octopus calculation!  Thus, to be more honest,
             # we re-extract the cell at a level where we can distinguish:
@@ -289,10 +289,12 @@ def parse(fname, fd):
                                np.array(atoms.pbc))
 
         with open_section('section_single_configuration_calculation'):
+            pew.addValue('single_configuration_calculation_to_system_ref',
+                         system_gid)
             print('Parse info file %s' % fname, file=fd)
             parse_infofile(metaInfoEnv, pew, fname)
 
-            with open_section('section_method'):
+            with open_section('section_method') as method_gid:
                 smearing_width = float(kwargs.get('smearing', 0.0))
                 pew.addValue('smearing_width',
                              convert_unit(smearing_width, ENERGY_UNIT))
@@ -344,6 +346,9 @@ def parse(fname, fd):
                     pew.addArrayValues('atom_forces_free_raw',
                                        convert_unit(forces, 'eV'))
                 # Convergence parameters?
+
+            pew.addValue('single_configuration_to_calculation_method_ref',
+                         method_gid)
 
             with open_section('section_eigenvalues'):
                 if kwargs.get('theorylevel', 'dft') == 'dft':
