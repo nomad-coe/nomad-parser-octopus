@@ -232,8 +232,9 @@ def parse(fname, fd):
 
     with open_section('section_run'):
         pew.addValue('program_name', 'Octopus')
-        print(file=fd)
+        pew.addValue('program_basis_set_type', 'real-space grids')
 
+        print(file=fd)
         print('Read Octopus keywords from input file %s' % inp_path,
               file=fd)
         kwargs = read_input_file(inp_path)
@@ -354,6 +355,10 @@ def parse(fname, fd):
                 if kwargs.get('theorylevel', 'dft') == 'dft':
                     pew.addValue('eigenvalues_kind', 'normal')
 
+                kpts = calc.get_ibz_k_points()
+                assert len(kpts) == nkpts
+                pew.addValue('number_of_eigenvalues_kpoints', nkpts)
+
                 eig = np.zeros((nspins, nkpts, nbands))
                 occ = np.zeros((nspins, nkpts, nbands))
 
@@ -362,9 +367,11 @@ def parse(fname, fd):
                         eig[s, k, :] = calc.get_eigenvalues(kpt=k, spin=s)
                         occ[s, k, :] = calc.get_occupation_numbers(kpt=k,
                                                                    spin=s)
+                pew.addArrayValues('eigenvalues_kpoints', kpts)
                 pew.addArrayValues('eigenvalues_values',
                                    convert_unit(eig, 'eV'))
                 pew.addArrayValues('eigenvalues_occupation', occ)
+
     pew.finishedParsingSession('ParseSuccess', None)
 
 if __name__ == '__main__':
