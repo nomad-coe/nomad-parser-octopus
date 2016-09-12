@@ -44,8 +44,8 @@ def normalize_names(names):
     return [name.lower() for name in names]
 
 
-OCT_ENERGY_UNIT_NAME = 'usrOctEnergyUnit'
-OCT_LENGTH_UNIT_NAME = 'usrOctLengthUnit'
+ENERGY_UNIT = 'usrOctEnergyUnit'
+LENGTH_UNIT = 'usrOctLengthUnit'
 
 metaInfoPath = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)),"../../../../nomad-meta-info/meta_info/nomad_meta_info/octopus.nomadmetainfo.json"))
 metaInfoEnv, warnings = loadJsonFile(filePath=metaInfoPath,
@@ -179,8 +179,8 @@ def register_units(kwargs, fd):
 
     print('Set units: energy=%s, length=%s' % (energy_unit, length_unit),
           file=fd)
-    register_userdefined_quantity(OCT_ENERGY_UNIT_NAME, energy_unit)
-    register_userdefined_quantity(OCT_LENGTH_UNIT_NAME, length_unit)
+    register_userdefined_quantity(ENERGY_UNIT, energy_unit)
+    register_userdefined_quantity(LENGTH_UNIT, length_unit)
 
 
 metadata_dtypes = {'b': bool,
@@ -293,6 +293,24 @@ def parse(fname, fd):
             parse_infofile(metaInfoEnv, pew, fname)
 
             with open_section('section_method'):
+                smearing_width = float(kwargs.get('smearing', 0.0))
+                pew.addValue('smearing_width',
+                             convert_unit(smearing_width, ENERGY_UNIT))
+                smearing_func = kwargs.get('smearingfunction',
+                                           'semiconducting')
+                smearing_kinds = {'semiconducting': 'empty',
+                                  'spline_smearing': 'gaussian',
+                                  # Note: spline and Gaussian are only
+                                  # nearly identical.  See:
+                                  # oct-help --print SmearingFunction
+                                  'fermi_dirac': 'fermi',
+                                  'cold_smearing': 'marzari-vanderbilt',
+                                  'methfessel_paxton': 'methfessel-paxton'}
+                                  #'': 'tetrahedra',
+
+                pew.addValue('smearing_kind',
+                             smearing_kinds[smearing_func])
+
                 pew.addValue('number_of_spin_channels', nspins)
                 pew.addValue('total_charge',
                              float(parser_log_kwargs['excesscharge']))
@@ -321,6 +339,10 @@ def parse(fname, fd):
                         with open_section('section_XC_functionals'):
                             pew.addValue('XC_functional_name', functional)
 
+                forces = calc.results.get('forces')
+                if forces is not None:
+                    pew.addArrayValues('atom_forces_free_raw',
+                                       convert_unit(forces, 'eV'))
                 # Convergence parameters?
 
             with open_section('section_eigenvalues'):
