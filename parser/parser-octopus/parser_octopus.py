@@ -232,7 +232,7 @@ def parse(fname, fd):
 
     with open_section('section_run'):
         pew.addValue('program_name', 'Octopus')
-        pew.addValue('program_basis_set_type', 'real-space grids')
+        pew.addValue('program_basis_set_type', 'real-space grid')
 
         print(file=fd)
         print('Read Octopus keywords from input file %s' % inp_path,
