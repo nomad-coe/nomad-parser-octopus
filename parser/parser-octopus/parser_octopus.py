@@ -213,8 +213,10 @@ def register_octopus_keywords(pew, category, kwargs):
 def parse(fname, fd):
     # fname refers to the static/info file.
     # Look for files before we create some of our own files for logging etc.:
-    staticdirname, _basefname = os.path.split(fname)
+    absfname = os.path.abspath(fname)
+    staticdirname, _basefname = os.path.split(absfname)
     dirname, _static = os.path.split(staticdirname)
+    assert _static == 'static'
     inp_path = os.path.join(dirname, 'inp')
     parser_log_path = os.path.join(dirname, 'exec', 'parser.log')
     logfile = find_octopus_logfile(dirname)
