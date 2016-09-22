@@ -250,6 +250,7 @@ def kwargs2atoms(kwargs, directory=None):
 
     # XXX the other 'units' keywords: input, output.
     units = kwargs.pop('units', 'atomic').lower()
+    units = kwargs.pop('unitsinput', units).lower()
     if units not in ['ev_angstrom', 'atomic']:
         raise OctopusKeywordError('Units not supported by ASE-Octopus '
                                   'interface: %s' % units)

@@ -281,7 +281,10 @@ def parse(fname, fd):
             # we re-extract the cell at a level where we can distinguish:
             cell, _unused = kwargs2cell(kwargs)
             if cell is not None:
-                pew.addArrayValues('simulation_cell', cell)
+                # ...and yet we add the ASE cell because that one is
+                # always measured in angstroms.
+                pew.addArrayValues('simulation_cell',
+                                   convert_unit(atoms.cell, 'angstrom'))
 
             # XXX FIXME atoms can be labeled in ways not compatible with ASE.
             pew.addArrayValues('atom_labels',
