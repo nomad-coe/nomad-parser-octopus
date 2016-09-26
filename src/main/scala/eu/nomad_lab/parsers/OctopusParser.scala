@@ -4,6 +4,8 @@ import eu.{ nomad_lab => lab }
 import eu.nomad_lab.DefaultPythonInterpreter
 import org.{ json4s => jn }
 import scala.collection.breakOut
+import eu.nomad_lab.parsers.AncillaryFilesPrefilter.{ ParentSubtree => ParentSubtree }
+import eu.nomad_lab.parsers.AncillaryFilesPrefilter.{ WholeUpload => WholeUpload }
 
 object OctopusParser extends SimpleExternalParserGenerator(
   name = "OctopusParser",
@@ -27,6 +29,7 @@ Simulation Box:
 """.r,
   cmd = Seq(DefaultPythonInterpreter.pythonExe(), "${envDir}/parsers/octopus/parser/parser-octopus/parser_octopus.py",
     "${mainFilePath}"),
+  ancillaryFilesPrefilter = ParentSubtree,
   resList = Seq(
     "parser-octopus/parser_octopus.py",
     "parser-octopus/aseoct.py",
