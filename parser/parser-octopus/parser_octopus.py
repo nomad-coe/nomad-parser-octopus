@@ -206,8 +206,15 @@ def register_octopus_keywords(pew, category, kwargs):
             continue
         # How do we get the metadata type?
         normalized_name = 'x_octopus_%s_%s' % (category, keyword)
-        name, value = regularize_metadata_entry(normalized_name, kwargs[keyword])
-        pew.addValue(name, value)
+        val = kwargs[keyword]
+        try:
+            name, value = regularize_metadata_entry(normalized_name, val)
+        except KeyError:  # unknown normalized_name
+            pass
+            # We can't crash on unknown keywords because we must support
+            # versions old and new alike.
+        else:
+            pew.addValue(name, value)
 
 
 def parse(fname, fd):
