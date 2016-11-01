@@ -118,7 +118,7 @@ def read_eigenvalues_file(fd):
     nspins = len(eigs[0])
     nbands = len(eigs[0][spin])
 
-    kptsarr = np.array(kpts)
+    kptsarr = np.array(kpts, float)
     eigsarr = np.empty((nkpts, nspins, nbands))
     occsarr = np.empty((nkpts, nspins, nbands))
 
@@ -732,8 +732,8 @@ def read_static_info_kpoints(fd):
         kpts.append(kxyz)
         weights.append(weight)
 
-    ibz_k_points = np.array(kpts)
-    k_point_weights = np.array(weights)
+    ibz_k_points = np.array(kpts, float)
+    k_point_weights = np.array(weights, float)
     return dict(ibz_k_points=ibz_k_points, k_point_weights=k_point_weights)
 
 
@@ -760,7 +760,7 @@ def read_static_info_eigenvalues(fd, energy_unit):
         val = [values_sknx['--']]
     else:
         val = [values_sknx['up'], values_sknx['dn']]
-    val = np.array(val)
+    val = np.array(val).astype(float)
     nkpts, remainder = divmod(len(val[0]), nbands)
     assert remainder == 0
 
