@@ -93,17 +93,6 @@ def read_parser_log(path):
     return exec_kwargs
 
 
-def read_input_file(path):
-    with open(path) as fd:
-        names, values = parse_input_file(fd)
-    names = normalize_names(names)
-
-    kwargs = {}
-    for name, value in zip(names, values):
-        kwargs[name] = value
-    return kwargs
-
-
 def is_octopus_logfile(fname):
     fd = open(fname)
     for n, line in enumerate(fd):
@@ -246,7 +235,8 @@ def parse(fname, fd):
         print(file=fd)
         print('Read Octopus keywords from input file %s' % inp_path,
               file=fd)
-        kwargs = read_input_file(inp_path)
+        with open(inp_path) as inp_fd:
+            kwargs = parse_input_file(inp_fd)
         register_octopus_keywords(pew, 'input', kwargs)
 
         print('Read processed Octopus keywords from octparse logfile %s'
