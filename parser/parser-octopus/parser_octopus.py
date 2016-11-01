@@ -199,7 +199,7 @@ def register_octopus_keywords(pew, category, kwargs):
         val = kwargs[keyword]
         try:
             name, value = regularize_metadata_entry(normalized_name, val)
-        except KeyError:  # unknown normalized_name
+        except (KeyError, ValueError):  # unknown normalized_name or cannot convert
             pass
             # We can't crash on unknown keywords because we must support
             # versions old and new alike.
