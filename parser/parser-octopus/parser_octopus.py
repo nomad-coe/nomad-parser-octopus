@@ -130,7 +130,7 @@ def override_keywords(kwargs, parser_log_kwargs, fd):
 
     # Now override any relevant keywords:
     for name in exec_override_keywords:
-        if name in kwargs:
+        if name in kwargs and name in parser_log_kwargs:
             if name == 'lsize':
                 lsize = []
                 for i in range(3):
