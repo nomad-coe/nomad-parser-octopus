@@ -255,7 +255,7 @@ def parse(fname, fd):
         atoms = calc.get_atoms()
 
         with open_section('section_basis_set_cell_dependent') as basis_set_cell_dependent_gid:
-            pew.addValue('basis_set_cell_dependend_kind', 'realspace_grids')
+            pew.addValue('basis_set_cell_dependent_kind', 'realspace_grids')
             # XXX FIXME spacing can very rarely be 3 numbers!
             # uuh there is no meaningful way to set grid spacing
         #    pass
