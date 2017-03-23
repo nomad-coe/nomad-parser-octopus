@@ -231,7 +231,7 @@ def parse(fname, fd):
 
     with open_section('section_run'):
         pew.addValue('program_name', 'Octopus')
-        pew.addValue('program_basis_set_type', 'real-space grid')
+        pew.addValue('program_basis_set_type', 'Real-space grid')
 
         print(file=fd)
         print('Read Octopus keywords from input file %s' % inp_path,
@@ -254,7 +254,8 @@ def parse(fname, fd):
         calc = Octopus(dirname, check_keywords=False)
         atoms = calc.get_atoms()
 
-        #with open_section('section_basis_set_cell_dependent'):
+        with open_section('section_basis_set_cell_dependent') as basis_set_cell_dependent_gid:
+            pew.addValue('basis_set_cell_dependend_kind', 'realspace_grids')
             # XXX FIXME spacing can very rarely be 3 numbers!
             # uuh there is no meaningful way to set grid spacing
         #    pass
@@ -299,6 +300,11 @@ def parse(fname, fd):
             parse_infofile(metaInfoEnv, pew, fname)
 
             with open_section('section_method') as method_gid:
+                for basis_set_kind in ['density', 'wavefunction']:
+                    with open_section('section_method_basis_set'):
+                        pew.addValue('method_basis_set_kind', basis_set_kind)
+                        pew.addValue('mapping_section_method_basis_set_cell_associated',
+                                     basis_set_cell_dependent_gid)
                 smearing_width = float(kwargs.get('smearing', 0.0))
                 pew.addValue('smearing_width',
                              convert_unit(smearing_width, ENERGY_UNIT))
