@@ -1,10 +1,12 @@
 from __future__ import print_function
+import re
 import os
 import sys
 from glob import glob
 from contextlib import contextmanager
 
 import numpy as np
+from ase.units import Bohr
 
 import setup_paths
 
@@ -13,7 +15,7 @@ from nomadcore.parser_backend import JsonParseEventsWriterBackend
 from nomadcore.unit_conversion.unit_conversion import convert_unit, \
     register_userdefined_quantity
 
-from aseoct import Octopus, parse_input_file, kwargs2cell
+from aseoct import Octopus, parse_input_file
 from octopus_info_parser import parse_infofile
 from octopus_logfile_parser import parse_logfile
 
@@ -38,6 +40,119 @@ debugging, not commonly used.  We will only implement support for
 those if many uploaded calculations contain those formats.  I think it
 is largely irrelevant.
 """
+
+
+def parse_gridinfo(metaInfoEnv, pew, fname):
+    results = {}
+
+    with open(fname) as fd:
+        for line in fd:
+            if '*** Grid ***' in line:
+                break
+
+        line = next(fd)
+
+        while '***********************' not in line:
+            if line.startswith('Simulation Box:'):
+                line = next(fd)
+
+                while line == '' or line[0].isspace():
+                    m = re.match(r'\s*Type\s*=\s*(\S+)', line)
+                    if m:
+                        results['boxshape'] = m.group(1)
+                    m = re.match(r'\s*Octopus will treat the system as periodic in (\S+) dim', line)
+                    if m:
+                        results['npbc'] = int(m.group(1))
+
+                    m = re.match(r'\s*Lattice Vectors \[(\S+)\]', line)
+                    if m:
+                        results['unit'] = m.group(1)
+                        cell = np.array([[float(x) for x in next(fd).split()] for _ in range(3)])
+                        results['cell'] = cell
+
+                    line = next(fd)
+
+            if line.startswith('Main mesh:'):
+                line = next(fd)
+                while line == '' or line[0].isspace():
+                    m = re.match(r'\s*Spacing\s*\[(\S+)\]\s*=\s*\(\s*(\S+?),\s*(\S+?),\s*(\S+?)\)', line)
+                    if m:
+                        results['unit'] = m.group(1)
+                        results['spacing'] = np.array(m.group(2, 3, 4)).astype(float)
+
+                    line = next(fd)
+    return results
+
+
+def parse_coordinates_from_parserlog(fname):
+    results = {}
+
+    def buildblock(block):
+        imax = 1 + max(b[0] for b in block)
+        jmax = 1 + max(b[1] for b in block)
+        array = np.zeros((imax, jmax), object)
+        for i, j, val in block:
+            array[i, j] = val
+        labels = array[:, 0].astype(str)[1:-1]
+        numbers = array[:, 1:4].astype(float)
+        return labels, numbers
+
+    with open(fname) as fd:
+        blockname = None
+        block = None
+        for line in fd:
+            line.split('#')[0].strip()
+
+            m = re.match(r"Opened block '(Coordinates|ReducedCoordinates)'", line)
+            if m:
+                blockname = m.group(1)
+                block = []
+                continue
+
+            m = re.match(r'Closed block', line)
+            if m:
+                if blockname is None:
+                    continue  # This is some other block
+                labels, numbers = buildblock(block)
+                results['labels'] = labels
+                if blockname == 'Coordinates':
+                    results['coords'] = numbers
+                else:
+                    assert blockname == 'ReducedCoordinates'
+                    results['rcoords'] = numbers
+
+                blockname = None
+                block = None
+                continue
+
+            if block is not None:
+                # Example:   (0, 0) = "Ag"
+                paren_expression = r'\s*\((\d+),\s*(\d+)\)\s*=\s*(.+)'
+                m = re.match(paren_expression, line)
+                if not m:
+                    # Example:   Coordinates (0, 0) = "O"
+                    m = re.match(r'\s*' + blockname + paren_expression, line)
+                if not m:
+                    # Example:  Coordinates[0][0] = "H"
+                    m = re.match(r'\s*' + blockname + r'\s*\[(\d+)\]\[(\d+)\]\s*=\s*(.+)', line)
+
+                assert m is not None
+                i, j, val = m.group(1, 2, 3)
+                block.append((int(i), int(j), val))
+
+            for name in ['PDBCoordinates',
+                         'XYZCoordinates',
+                         'XSFCoordinates']:
+                m = re.match(name + r'\s*=\s*"(.+?)"', line)
+                if m:
+                    assert block is None
+                    results[name] = m.group(1)
+
+            m = re.match('XSFCoordinatesAnimStep\s*=\s*(\d+)', line)
+            if m:
+                results['XSFCoordinatesAnimStep'] = int(m.group(1))
+
+    return results
 
 
 def normalize_names(names):
@@ -199,10 +314,13 @@ def register_octopus_keywords(pew, category, kwargs):
         val = kwargs[keyword]
         try:
             name, value = regularize_metadata_entry(normalized_name, val)
-        except (KeyError, ValueError):  # unknown normalized_name or cannot convert
+        except Exception:  # unknown normalized_name or cannot convert
             pass
             # We can't crash on unknown keywords because we must support
             # versions old and new alike.
+            #
+            # Some keywords (e.g. Spacing) specify float as type, but they
+            # can actually be blocks.  (block is a type itself)
         else:
             pew.addValue(name, value)
 
@@ -275,23 +393,60 @@ def parse(fname, fd):
 
         print('Add parsed values', file=fd)
         with open_section('section_system') as system_gid:
-            # The Atoms object will always have a cell, even if it was not
-            # used in the Octopus calculation!  Thus, to be more honest,
-            # we re-extract the cell at a level where we can distinguish:
-            cell, _unused = kwargs2cell(kwargs)
-            if cell is not None:
-                # ...and yet we add the ASE cell because that one is
-                # always measured in angstroms.
+            gridinfo = parse_gridinfo(metaInfoEnv, pew, fname)
+            cell_unit = gridinfo['unit']
+            if 'cell' in gridinfo:
+                cell = gridinfo['cell']
+                if cell_unit == 'A':
+                    cell /= Bohr  # Always Bohr now
+                else:
+                    assert lunit == 'b'
                 pew.addArrayValues('simulation_cell',
-                                   convert_unit(atoms.cell, 'angstrom'))
+                                   convert_unit(cell, 'bohr'))
+
+            # We will get the positions from the parser log.
+            coordinfo = parse_coordinates_from_parserlog(parser_log_path)
+            atoms = None
+            coords = None
+            if 'PDBCoordinates' in coordinfo:
+                atoms = read(coordinfo['PDBCoordinates'], format='proteindatabank')
+            elif 'XYZCoordinates' in coordinfo:
+                atoms = read(coordinfo['XYZCoordinates'], format='xyz')
+            elif 'XSFCoordinates' in coordinfo:
+                if 'XSFCoordinatesAnimStep' in coordinfo:
+                    xxxx  # read correct step.  Take 1-indexation into account
+                atoms = read(coordinfo['XSFCoordinates'], format='xsf')
+            elif 'coords' in coordinfo:
+                coords = coordinfo['coords']
+            elif 'rcoords' in coordinfo:
+                # unit will be Bohr cf. handling of cell above
+                coords = np.dot(coordinfo['rcoords'], cell)
+
+            if atoms is not None:
+                coords = atoms.positions / Bohr
+
+            assert coords is not None, 'Cannot find coordinates'
+            labels = coordinfo.get('labels')
+            if labels is None:
+                labels = np.array(atoms.get_chemical_symbols())
+
+            pbc = np.zeros(3)
+
+            if 'npbc' in gridinfo:
+                pbc = np.zeros(3, bool)
+                pbc[:gridinfo['npbc']] = True
+                pew.addArrayValues('configuration_periodic_dimensions', pbc)
+
+            pew.addArrayValues('atom_labels', labels)
+            pew.addArrayValues('atom_positions', convert_unit(coords, 'bohr'))
 
             # XXX FIXME atoms can be labeled in ways not compatible with ASE.
-            pew.addArrayValues('atom_labels',
-                               np.array(atoms.get_chemical_symbols()))
-            pew.addArrayValues('atom_positions',
-                               convert_unit(atoms.get_positions(), 'angstrom'))
-            pew.addArrayValues('configuration_periodic_dimensions',
-                               np.array(atoms.pbc))
+            #pew.addArrayValues('atom_labels',
+            #                   np.array(atoms.get_chemical_symbols()))
+            #pew.addArrayValues('atom_positions',
+            #                   convert_unit(atoms.get_positions(), 'angstrom'))
+            #pew.addArrayValues('configuration_periodic_dimensions',
+            #                   np.array(atoms.pbc))
 
         with open_section('section_single_configuration_calculation'):
             pew.addValue('single_configuration_calculation_to_system_ref',

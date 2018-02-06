@@ -392,33 +392,6 @@ def parse_input_file(fd):
     return namespace.names
 
 
-def kwargs2cell(kwargs):
-    # kwargs -> cell + remaining kwargs
-    # cell will be None if not ASE-compatible.
-    #
-    # Returns numbers verbatim; caller must convert units.
-    kwargs = normalize_keywords(kwargs)
-
-    if boxshape_is_ase_compatible(kwargs):
-        kwargs.pop('boxshape', None)
-        if 'lsize' in kwargs:
-            Lsize = kwargs.pop('lsize')
-            if not isinstance(Lsize, list):
-                Lsize = [[Lsize] * 3]
-            assert len(Lsize) == 1
-            cell = np.array([2 * float(l) for l in Lsize[0]])
-        elif 'latticeparameters' in kwargs:
-            # Eval latparam and latvec
-            latparam = np.array(kwargs.pop('latticeparameters'), float).T
-            cell = np.array(kwargs.pop('latticevectors', np.eye(3)), float)
-            for a, vec in zip(latparam, cell):
-                vec *= a
-            assert cell.shape == (3, 3)
-    else:
-        cell = None
-    return cell, kwargs
-
-
 def boxshape_is_ase_compatible(kwargs):
     pdims = int(kwargs.get('periodicdimensions', 0))
     default_boxshape = 'parallelepiped' if pdims > 0 else 'minimum'
@@ -544,14 +517,14 @@ def kwargs2atoms(kwargs, directory=None):
         if sum(atoms.pbc) != 0:
             raise NotImplementedError('Periodic pdb not supported by ASE.')
 
-    if cell is None:
+    #if cell is None:
         # cell could not be established from the file, so we set it on the
         # Atoms now if possible:
-        cell, kwargs = kwargs2cell(kwargs)
-        if cell is not None:
-            cell *= length_unit
-        if cell is not None and atoms is not None:
-            atoms.cell = cell
+    #    cell, kwargs = kwargs2cell(kwargs)
+    #    if cell is not None:
+    #        cell *= length_unit
+    #    if cell is not None and atoms is not None:
+    #        atoms.cell = cell
         # In case of boxshape = sphere and similar, we still do not have
         # a cell.
 
@@ -568,10 +541,11 @@ def kwargs2atoms(kwargs, directory=None):
     rcoords = kwargs.get('reducedcoordinates')
     if rcoords is not None:
         numbers, rpositions = get_positions_from_block('reducedcoordinates')
-        if cell is None:
-            raise ValueError('Cannot figure out what the cell is, '
-                             'and thus cannot interpret reduced coordinates.')
-        atoms = Atoms(cell=cell, numbers=numbers, scaled_positions=rpositions)
+        #if cell is None:
+        #    raise ValueError('Cannot figure out what the cell is, '
+        #                     'and thus cannot interpret reduced coordinates.')
+        atoms = Atoms(cell=cell, numbers=numbers, positions=rpositions)
+        # Very invalid, but we get (scaled) positions from elsewhere anyway
     if atoms is None:
         raise OctopusParseError('Apparently there are no atoms.')
 
