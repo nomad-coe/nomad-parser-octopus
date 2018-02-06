@@ -7,6 +7,7 @@ from contextlib import contextmanager
 
 import numpy as np
 from ase.units import Bohr
+from ase.io import read
 
 import setup_paths
 
@@ -87,6 +88,8 @@ def parse_gridinfo(metaInfoEnv, pew, fname):
 def parse_coordinates_from_parserlog(fname):
     results = {}
 
+    units = 'bohr'
+
     def buildblock(block):
         imax = 1 + max(b[0] for b in block)
         jmax = 1 + max(b[1] for b in block)
@@ -152,6 +155,12 @@ def parse_coordinates_from_parserlog(fname):
             if m:
                 results['XSFCoordinatesAnimStep'] = int(m.group(1))
 
+            for name in ['Units',
+                         'UnitsInput']:
+                m = re.match(r'\s*' + name + r'\s*=\s*(\S+)', line)
+                if m:
+                    results[name] = m.group(1)
+
     return results
 
 
@@ -159,8 +168,8 @@ def normalize_names(names):
     return [name.lower() for name in names]
 
 
-ENERGY_UNIT = 'usrOctEnergyUnit'
-LENGTH_UNIT = 'usrOctLengthUnit'
+#ENERGY_UNIT = 'usrOctEnergyUnit'
+#LENGTH_UNIT = 'usrOctLengthUnit'
 
 metaInfoPath = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                              "../../../../nomad-meta-info/meta_info/nomad_meta_info/octopus.nomadmetainfo.json"))
@@ -366,19 +375,19 @@ def parse(fname, fd):
         print('Override certain keywords with processed keywords', file=fd)
         kwargs = override_keywords(kwargs, parser_log_kwargs, fd)
 
-        register_units(kwargs, fd)
+        #register_units(kwargs, fd)
 
         print('Read as ASE calculator', file=fd)
         calc = Octopus(dirname, check_keywords=False)
-        atoms = calc.get_atoms()
+        #atoms = calc.get_atoms()
 
         with open_section('section_basis_set_cell_dependent') as basis_set_cell_dependent_gid:
             pew.addValue('basis_set_cell_dependent_kind', 'realspace_grids')
             # XXX FIXME spacing can very rarely be 3 numbers!
             # uuh there is no meaningful way to set grid spacing
         #    pass
-        cubefiles = glob('staticdirname/*.cube')
-        cubefiles.sort()
+        #cubefiles = glob('staticdirname/*.cube')
+        #cubefiles.sort()
 
         nbands = calc.get_number_of_bands()
         nspins = calc.get_number_of_spins()
@@ -398,26 +407,39 @@ def parse(fname, fd):
             if 'cell' in gridinfo:
                 cell = gridinfo['cell']
                 if cell_unit == 'A':
-                    cell /= Bohr  # Always Bohr now
+                    cell /= Bohr  # cell guaranteed to be Bohr now
                 else:
                     assert lunit == 'b'
                 pew.addArrayValues('simulation_cell',
                                    convert_unit(cell, 'bohr'))
 
             # We will get the positions from the parser log.
+            # It is the only "practical" way.
             coordinfo = parse_coordinates_from_parserlog(parser_log_path)
             atoms = None
             coords = None
+
+            # Old versions allow this abomination.
+            if kwargs.get('unitsinput', kwargs.get('units')) == 'ev_angstrom':
+                input_units = 'angstrom'
+            else:
+                input_units = 'bohr'
+
+            staticdir, _info = os.path.split(fname)
+            inpdir, _static = os.path.split(staticdir)
+
             if 'PDBCoordinates' in coordinfo:
-                atoms = read(coordinfo['PDBCoordinates'], format='proteindatabank')
+                atoms = read(os.path.join(inpdir, coordinfo['PDBCoordinates']), format='proteindatabank')
             elif 'XYZCoordinates' in coordinfo:
-                atoms = read(coordinfo['XYZCoordinates'], format='xyz')
+                atoms = read(os.path.join(inpdir, coordinfo['XYZCoordinates']), format='xyz')
             elif 'XSFCoordinates' in coordinfo:
                 if 'XSFCoordinatesAnimStep' in coordinfo:
-                    xxxx  # read correct step.  Take 1-indexation into account
-                atoms = read(coordinfo['XSFCoordinates'], format='xsf')
+                    assert 0  # XXX read correct step.  Take 1-indexation into account
+                atoms = read(os.path.join(inpdir, coordinfo['XSFCoordinates']), format='xsf')
             elif 'coords' in coordinfo:
                 coords = coordinfo['coords']
+                if input_units == 'angstrom':
+                    coords /= Bohr
             elif 'rcoords' in coordinfo:
                 # unit will be Bohr cf. handling of cell above
                 coords = np.dot(coordinfo['rcoords'], cell)
@@ -460,9 +482,10 @@ def parse(fname, fd):
                         pew.addValue('method_basis_set_kind', basis_set_kind)
                         pew.addValue('mapping_section_method_basis_set_cell_associated',
                                      basis_set_cell_dependent_gid)
-                smearing_width = float(kwargs.get('smearing', 0.0))
-                pew.addValue('smearing_width',
-                             convert_unit(smearing_width, ENERGY_UNIT))
+                #smearing_width = float(kwargs.get('smearing', 0.0))
+                #pew.addValue('smearing_width',
+                #             convert_unit(smearing_width, ENERGY_UNIT))
+                # XXX remember to get smearing width somehow
                 smearing_func = kwargs.get('smearingfunction',
                                            'semiconducting')
                 smearing_kinds = {'semiconducting': 'empty',

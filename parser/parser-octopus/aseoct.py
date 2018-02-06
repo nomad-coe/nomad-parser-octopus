@@ -1159,9 +1159,6 @@ class Octopus(FileIOCalculator):
                 raise OctopusIOError('No such file or directory: %s' % path)
         return path
 
-    def get_atoms(self):
-        return FileIOCalculator.get_atoms(self)
-
     def read_results(self):
         """Read octopus output files and extract data."""
         fd = open(self._getpath('static/info', check=True))
@@ -1210,24 +1207,11 @@ class Octopus(FileIOCalculator):
         if self.octopus_keywords is not None:
             self.check_keywords_exist(kwargs)
 
-        self.atoms, kwargs = kwargs2atoms(kwargs)
+        #self.atoms, kwargs = kwargs2atoms(kwargs)
         self.kwargs.update(kwargs)
 
         fd.close()
         self.read_results()
-
-    @classmethod
-    def recipe(cls, **kwargs):
-        system = Atoms()
-        calc = Octopus(CalculationMode='recipe', **kwargs)
-        system.set_calculator(calc)
-        try:
-            system.get_potential_energy()
-        except OctopusIOError:
-            pass
-        else:
-            raise OctopusIOError('Expected recipe, but found '
-                                 'useful physical output!')
 
 
 def main():
