@@ -96,7 +96,7 @@ def parse_coordinates_from_parserlog(fname):
         array = np.zeros((imax, jmax), object)
         for i, j, val in block:
             array[i, j] = val
-        labels = array[:, 0].astype(str)[1:-1]
+        labels = np.array([val[1:-1] for val in array[:, 0].astype(str)])
         numbers = array[:, 1:4].astype(float)
         return labels, numbers
 
