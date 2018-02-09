@@ -409,7 +409,7 @@ def parse(fname, fd):
                 if cell_unit == 'A':
                     cell /= Bohr  # cell guaranteed to be Bohr now
                 else:
-                    assert lunit == 'b'
+                    assert cell_unit == 'b'
                 pew.addArrayValues('simulation_cell',
                                    convert_unit(cell, 'bohr'))
 
