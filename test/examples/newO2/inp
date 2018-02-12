@@ -1,0 +1,19 @@
+a = angstrom
+%LSize
+ 2.0*a | 2.0*a | 2.6229779999999998*a
+%
+
+PeriodicDimensions = 0
+Output = forces
+OutputFormat = xcrysden
+ExtraStates = 2
+FromScratch = True
+RestartWrite = False
+stdout = 'stdout.txt'
+SpinComponents = spin_polarized
+BoxShape = parallelepiped
+
+%Coordinates
+ 'O' | 0.0 | 0.0 | 0.62297799999999981*a
+ 'O' | 0.0 | 0.0 | -0.62297800000000003*a
+%

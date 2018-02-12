@@ -1,0 +1,111 @@
+
+******************************** Grid ********************************
+Simulation Box:
+  Type = parallelepiped
+  Lengths [b] = (   3.779,   3.779,   4.957)
+  Octopus will run in 3 dimension(s).
+  Octopus will treat the system as periodic in 0 dimension(s).
+
+  Lattice Vectors [b]
+    7.558905    0.000000    0.000000
+    0.000000    7.558905    0.000000
+    0.000000    0.000000    9.913420
+  Cell volume =           566.4235 [b^3]
+  Reciprocal-Lattice Vectors [b^-1]
+    0.831230    0.000000    0.000000
+    0.000000    0.831230    0.000000
+    0.000000    0.000000    0.633806
+Main mesh:
+  Spacing [b] = ( 0.435, 0.435, 0.435)    volume/point [b^3] =      0.08210
+  # inner mesh =       6647
+  # total mesh =      16191
+  Grid Cutoff [H] =    26.123439    Grid Cutoff [Ry] =    52.246878
+**********************************************************************
+
+
+***************************** Symmetries *****************************
+Symmetry elements : (i) (Cinf) (C2) 2*(sigma)
+Symmetry group    : Dinfh
+**********************************************************************
+
+
+**************************** Theory Level ****************************
+Input: [TheoryLevel = dft]
+
+Exchange-correlation:
+  Exchange
+    Slater exchange (LDA)
+    [1] P. A. M. Dirac, Math. Proc. Cambridge Philos. Soc. 26, 376 (1930)
+    [2] F. Bloch, Z. Phys. 57, 545 (1929)
+  Correlation
+    Perdew & Zunger (Modified) (LDA)
+    [1] J. P. Perdew and A. Zunger, Phys. Rev. B 23, 5048 (1981), modified to improve the matching between the low- and high-rs
+
+Input: [SICCorrection = sic_none]
+**********************************************************************
+
+SCF converged in    9 iterations
+
+Eigenvalues [H]
+ #st  Spin   Eigenvalue      Occupation
+   1   up    -1.176785       1.000000
+   1   dn    -1.126954       1.000000
+   2   up    -0.753305       1.000000
+   2   dn    -0.687932       1.000000
+   3   up    -0.479577       1.000000
+   3   dn    -0.437801       1.000000
+   4   up    -0.464599       1.000000
+   4   dn    -0.399461       1.000000
+   5   up    -0.464599       1.000000
+   5   dn    -0.399461       1.000000
+   6   up    -0.233124       1.000000
+   6   dn    -0.154397       0.000000
+   7   up    -0.233124       1.000000
+   7   dn    -0.154397       0.000000
+   8   up     0.102694       0.000000
+   8   dn     0.147275       0.000000
+
+Energy [H]:
+      Total       =       -31.59011232
+      Free        =       -31.59011232
+      -----------
+      Ion-ion     =        15.28976907
+      Eigenvalues =        -6.85672237
+      Hartree     =        42.09126664
+      Int[n*v_xc] =        -8.71364057
+      Exchange    =        -5.94192549
+      Correlation =        -0.70360746
+      vanderWaals =         0.00000000
+      Delta XC    =         0.00000000
+      Entropy     =         0.00000000
+      -TS         =        -0.00000000
+      Kinetic     =        21.12288247
+      External    =      -103.44850287
+      Non-local   =        -8.17351056
+
+Total Magnetic Moment:
+ mz =   2.000000
+Local Magnetic Moments (sphere radius [b] =   1.177):
+ Ion                    mz
+   1         O       0.665547
+   2         O       0.665864
+
+Dipole:                 [b]          [Debye]
+      <x> =    6.02026E-15      1.53020E-14
+      <y> =    7.14305E-15      1.81558E-14
+      <z> =   -2.49232E-13     -6.33484E-13
+
+Convergence:
+      abs_dens =  6.06532093E-05 ( 0.00000000E+00)
+      rel_dens =  5.05443411E-06 ( 1.00000000E-05)
+      abs_ev =  1.50393668E-05 ( 0.00000000E+00) [H]
+      rel_ev =  2.19337549E-06 ( 0.00000000E+00)
+
+Forces on the ions [H/b]
+ Ion                        x              y              z
+   1         O       0.000000      -0.000000      -0.004364
+   2         O      -0.000000      -0.000000       0.004364
+ ----------------------------------------------------------
+ Max abs force       0.000000       0.000000       0.004364
+   Total force      -0.000000      -0.000000       0.000000
+  Total torque      -0.000000       0.000000       0.000000
