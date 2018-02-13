@@ -49,5 +49,29 @@ object OctopusParserSpec extends Specification {
     "test Fe with json" >> {
       ParserRun.parse(OctopusParser, "parsers/octopus/test/examples/Fe/static/info", "json") must_== ParseResult.ParseSuccess
     }
+    "test newFe with json-events" >> {
+      ParserRun.parse(OctopusParser, "parsers/octopus/test/examples/newFe/static/info", "json-events") must_== ParseResult.ParseSuccess
+    }
+    "test newFe with json" >> {
+      ParserRun.parse(OctopusParser, "parsers/octopus/test/examples/newFe/static/info", "json") must_== ParseResult.ParseSuccess
+    }
+    "test newH2O with json-events" >> {
+      ParserRun.parse(OctopusParser, "parsers/octopus/test/examples/newH2O/static/info", "json-events") must_== ParseResult.ParseSuccess
+    }
+    "test newH2O with json" >> {
+      ParserRun.parse(OctopusParser, "parsers/octopus/test/examples/newH2O/static/info", "json") must_== ParseResult.ParseSuccess
+    }
+    "test newO2 with json-events" >> {
+      ParserRun.parse(OctopusParser, "parsers/octopus/test/examples/newO2/static/info", "json-events") must_== ParseResult.ParseSuccess
+    }
+    "test newO2 with json" >> {
+      ParserRun.parse(OctopusParser, "parsers/octopus/test/examples/newO2/static/info", "json") must_== ParseResult.ParseSuccess
+    }
+    "test newSi with json-events" >> {
+      ParserRun.parse(OctopusParser, "parsers/octopus/test/examples/newSi/static/info", "json-events") must_== ParseResult.ParseSuccess
+    }
+    "test newSi with json" >> {
+      ParserRun.parse(OctopusParser, "parsers/octopus/test/examples/newSi/static/info", "json") must_== ParseResult.ParseSuccess
+    }
   }
 }
