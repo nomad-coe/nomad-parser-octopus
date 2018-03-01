@@ -28,61 +28,6 @@ from ase.io.xsf import read_xsf
 from ase.units import Bohr, Angstrom, Hartree, eV, Debye
 
 
-# Representation of parameters from highest to lowest level of abstraction:
-#
-#  * Atoms object plus reduced kwargs that specify info not stored in the Atoms
-#  * full dictionary of kwargs incorporating info contained in the Atoms
-#  * series of assignments (names, values).  May contain duplicates.
-#  * text in Octopus input file format
-
-
-# Octopus variable types and specification in Python:
-#
-#  Type     Examples                    Equivalent in Python:
-# -----------------------------------------------------------------------------
-#  flag     wfs + density               'wfs + density'
-#  float    2.7, 2.7 + pi^2             2.7, 2.7 + np.pi**2
-#  integer  42, rmmdiis                 42, 'rmmdiis'
-#  logical  true, false, yes, no, ...   True, False, 1, 0, 'yes', 'no', ...
-#  string   "stdout.txt"                '"stdout.txt"' (apologies for ugliness)
-#
-#  block    %Coordinates                List of lists:
-#            'H' | 0 | 0 | 0              coordinates=[["'H'", 0, 0, 0],
-#            'O' | 0 | 0 | 1                           ["'O'", 0, 0, 1]]
-#           %                             (elemements are sent through repr())
-
-# Rules for input parameters
-# --------------------------
-#
-# We make the following conversions:
-#     dict of keyword arguments + Atoms object -> Octopus input file
-# and:
-#     Octopus input file -> Atoms object + dict of keyword arguments
-# Below we detail some conventions and compatibility issues.
-#
-# 1) ASE always passes some parameters by default (always write
-#    forces, etc.).  They can be overridden by the user, but the
-#    resulting behaviour is undefined.
-#
-# 2) Atoms object is used to establish some parameters: Coordinates,
-#    Lsize, etc.  All those parameters can be overridden by passing
-#    them directly as keyword arguments.  Parameters that were taken
-#    from the Atoms object are always marked with the comment "# ASE
-#    auto" in the input file.  This is used to distinguish variables
-#    that are overridden from variables that simply came from the
-#    atoms object when restarting.
-#
-# 3) Some variables do not interact nicely between ASE and Octopus,
-#    such as SubSystemCoordinates which may involve rotations.  There
-#    may be many such variables that we have not identified, but at
-#    least the known ones will cause a suppressable
-#    OctopusKeywordError.  (This third rule has not been implemented
-#    as of this moment.)
-#
-# 4) OctopusKeywordError is raised from Python for keywords that are
-#    not valid according to oct-help.
-
-
 def read_eigenvalues_file(fd):
     unit = None
 
@@ -136,51 +81,6 @@ def read_eigenvalues_file(fd):
 
     eigsarr *= {'H': Hartree, 'eV': eV}[unit]
     return kptsarr, eigsarr, occsarr
-
-
-def process_special_kwargs(atoms, kwargs):
-    return  # XXXXXX disabled
-    kwargs = kwargs.copy()
-    kpts = kwargs.pop('kpts', None)
-    if kpts is not None:
-        for kw in ['kpoints', 'reducedkpoints', 'kpointsgrid']:
-            if kw in kwargs:
-                raise ValueError('k-points specified multiple times')
-
-        kptsarray = kpts2ndarray(kpts, atoms)
-        nkpts = len(kptsarray)
-        fullarray = np.empty((nkpts, 4))
-        fullarray[:, 0] = 1.0 / nkpts  # weights
-        fullarray[:, 1:4] = kptsarray
-        kwargs['kpointsreduced'] = fullarray.tolist()
-
-    # TODO xc=LDA/PBE etc.
-
-    # The idea is to get rid of the special keywords, since the rest
-    # will be passed to Octopus
-    # XXX do a better check of this
-    for kw in Octopus.special_ase_keywords:
-        assert kw not in kwargs
-    return kwargs
-
-
-def is_orthorhombic(cell):
-    return (np.diag(np.diag(cell)) == cell).all()
-
-
-def get_input_units(kwargs):
-    units = kwargs.get('unitsinput', kwargs.get('units', 'atomic')).lower()
-    if units not in ['ev_angstrom', 'atomic']:
-        raise OctopusKeywordError('Units not supported by ASE-Octopus '
-                                  'interface: %s' % units)
-    return units
-
-class OctopusKeywordError(ValueError):
-    pass  # Unhandled keywords
-
-
-class OctopusParseError(Exception):
-    pass  # Cannot parse input file
 
 
 class OctopusIOError(IOError):
@@ -529,26 +429,6 @@ def read_static_info(fd):
 
 
 class Octopus(FileIOCalculator):
-    """Octopus calculator.
-
-    The label is always assumed to be a directory."""
-
-    implemented_properties = ['energy', 'forces',
-                              'dipole',
-                              'magmom', 'magmoms']
-
-    troublesome_keywords = set(['subsystemcoordinates',
-                                'subsystems',
-                                'unitsinput',
-                                'unitsoutput',
-                                'pdbcoordinates',
-                                'xyzcoordinates',
-                                'xsfcoordinates',
-                                'xsfcoordinatesanimstep',
-                                'reducedcoordinates'])
-
-    special_ase_keywords = set(['kpts'])
-
     def __init__(self, restart):
         self.kwargs = {}
 
@@ -565,14 +445,6 @@ class Octopus(FileIOCalculator):
     def set(self, **kwargs):
         """Set octopus input file parameters."""
         kwargs = normalize_keywords(kwargs)
-
-        for keyword in kwargs:
-            if keyword in self.troublesome_keywords:
-                msg = ('ASE-Octopus interface will probably misbehave with '
-                       'the %s parameter.  Optimists may use '
-                       'Octopus(ignore_troublesome_keywords=[kw1, kw2, ...])'
-                       'to override this.' % keyword)
-                raise OctopusKeywordError(msg)
 
         changes = FileIOCalculator.set(self, **kwargs)
         if changes:
