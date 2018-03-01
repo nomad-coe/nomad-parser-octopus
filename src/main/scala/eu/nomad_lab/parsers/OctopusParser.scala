@@ -1,5 +1,5 @@
 /*
-   Copyright 2016-2017 The NOMAD Developers Group
+   Copyright 2016-2018 The NOMAD Developers Group
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -49,7 +49,6 @@ Simulation Box:
     "parser-octopus/parser_octopus.py",
     "parser-octopus/aseoct.py",
     "parser-octopus/generate-octopus-json.py",
-    "parser-octopus/util.py",
     "parser-octopus/setup_paths.py",
     "nomad_meta_info/public.nomadmetainfo.json",
     "nomad_meta_info/common.nomadmetainfo.json",
