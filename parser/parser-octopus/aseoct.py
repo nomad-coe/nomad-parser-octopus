@@ -1,5 +1,5 @@
 # coding=utf-8
-"""ASE-interface to Octopus.
+"""This is based on a fork of the ASE-interface to Octopus.
 
 The Octopus ASE interface is written by
 
@@ -22,7 +22,6 @@ import numpy as np
 
 from ase import Atoms
 from ase.calculators.calculator import FileIOCalculator
-# XXX raise ReadError upon bad read
 from ase.data import atomic_numbers
 from ase.io import read
 from ase.io.xsf import read_xsf
@@ -203,21 +202,6 @@ def unpad(pbc, arr):
     return np.ascontiguousarray(arr)
 
 
-def unpad_smarter(pbc, arr):
-    # 'Smarter' but less easy to understand version of the above.
-    # (untested I think)
-    slices = []
-    for c, is_periodic in enumerate(pbc):
-        if is_periodic:
-            left = np.take(arr, [0], axis=c)
-            right = np.take(arr, [-1], axis=c)
-            assert np.all(left == right)
-            slices.append(slice(0, -1))
-        else:
-            slices.append(slice(None))
-    return np.ascontiguousarray(arr[slices])
-
-
 # Parse value as written in input file *or* something that one would be
 # passing to the ASE interface, i.e., this might already be a boolean
 def octbool2bool(value):
@@ -390,303 +374,6 @@ def parse_input_file(fd):
 
     namespace.names.update(blocks)
     return namespace.names
-
-
-def boxshape_is_ase_compatible(kwargs):
-    pdims = int(kwargs.get('periodicdimensions', 0))
-    default_boxshape = 'parallelepiped' if pdims > 0 else 'minimum'
-    boxshape = kwargs.get('boxshape', default_boxshape).lower()
-    # XXX add support for experimental keyword 'latticevectors'
-    return boxshape == 'parallelepiped'
-
-
-def kwargs2atoms(kwargs, directory=None):
-    """Extract atoms object from keywords and return remaining keywords.
-
-    Some keyword arguments may refer to files.  The directory keyword
-    may be necessary to resolve the paths correctly, and is used for
-    example when running 'ase-gui somedir/inp'."""
-    kwargs = normalize_keywords(kwargs)
-
-    # Only input units accepted nowadays are 'atomic'.
-    # But if we are loading an old file, and it specifies something else,
-    # we can be sure that the user wanted that back then.
-    units = get_input_units(kwargs)
-    atomic_units = (units == 'atomic')
-    if atomic_units:
-        length_unit = Bohr
-    else:
-        length_unit = Angstrom
-
-    coord_keywords = ['coordinates',
-                      'xyzcoordinates',
-                      'pdbcoordinates',
-                      'reducedcoordinates',
-                      'xsfcoordinates',
-                      'xsfcoordinatesanimstep']
-
-    nkeywords = 0
-    for keyword in coord_keywords:
-        if keyword in kwargs:
-            nkeywords += 1
-    if nkeywords == 0:
-        raise OctopusParseError('No coordinates')
-    elif nkeywords > 1:
-        raise OctopusParseError('Multiple coordinate specifications present.  '
-                                'This may be okay in Octopus, but we do not '
-                                'implement it.')
-
-    def get_positions_from_block(keyword):
-        # %Coordinates or %ReducedCoordinates -> atomic numbers, positions.
-        block = kwargs.pop(keyword)
-        positions = []
-        numbers = []
-        for row in block:
-            assert len(row) in [ndims + 1, ndims + 2]
-            row = row[:ndims + 1]
-            sym = row[0]
-            assert sym.startswith('"') or sym.startswith("'")
-            assert sym[0] == sym[-1]
-            sym = sym[1:-1]
-            pos0 = np.zeros(3)
-            ndim = int(kwargs.get('dimensions', 3))
-            pos0[:ndim] = [float(element) for element in row[1:]]
-            number = atomic_numbers[sym]  # Use 0 ~ 'X' for unknown?
-            numbers.append(number)
-            positions.append(pos0)
-        positions = np.array(positions)
-        return numbers, positions
-
-    def read_atoms_from_file(fname, fmt):
-        assert fname.startswith('"') or fname.startswith("'")
-        assert fname[0] == fname[-1]
-        fname = fname[1:-1]
-        if directory is not None:
-            fname = os.path.join(directory, fname)
-        # XXX test xyz, pbd and xsf
-        if fmt == 'xsf' and 'xsfcoordinatesanimstep' in kwargs:
-            anim_step = kwargs.pop('xsfcoordinatesanimstep')
-            theslice = slice(anim_step, anim_step + 1, 1)
-            # XXX test animstep
-        else:
-            theslice = slice(None, None, 1)
-        images = read(fname, theslice, fmt)
-        if len(images) != 1:
-            raise OctopusParseError('Expected only one image.  Don\'t know '
-                                    'what to do with %d images.' % len(images))
-        return images[0]
-
-    # We will attempt to extract cell and pbc from kwargs if 'lacking'.
-    # But they might have been left unspecified on purpose.
-    #
-    # We need to keep track of these two variables "externally"
-    # because the Atoms object assigns values when they are not given.
-    cell = None
-    pbc = None
-    adjust_positions_by_half_cell = False
-
-    atoms = None
-    xsfcoords = kwargs.pop('xsfcoordinates', None)
-    if xsfcoords is not None:
-        atoms = read_atoms_from_file(xsfcoords, 'xsf')
-        atoms.positions *= length_unit
-        atoms.cell *= length_unit
-        # As it turns out, non-periodic xsf is not supported by octopus.
-        # Also, it only supports fully periodic or fully non-periodic....
-        # So the only thing that we can test here is 3D fully periodic.
-        if sum(atoms.pbc) != 3:
-            raise NotImplementedError('XSF not fully periodic with Octopus')
-        cell = atoms.cell
-        pbc = atoms.pbc
-        # Position adjustment doesn't actually matter but this should work
-        # most 'nicely':
-        adjust_positions_by_half_cell = False
-    xyzcoords = kwargs.pop('xyzcoordinates', None)
-    if xyzcoords is not None:
-        atoms = read_atoms_from_file(xyzcoords, 'xyz')
-        atoms.positions *= length_unit
-        adjust_positions_by_half_cell = True
-    pdbcoords = kwargs.pop('pdbcoordinates', None)
-    if pdbcoords is not None:
-        atoms = read_atoms_from_file(pdbcoords, 'pdb')
-        pbc = atoms.pbc
-        adjust_positions_by_half_cell = True
-        # Due to an error in ASE pdb, we can only test the nonperiodic case.
-        # atoms.cell *= length_unit # XXX cell?  Not in nonperiodic case...
-        atoms.positions *= length_unit
-        if sum(atoms.pbc) != 0:
-            raise NotImplementedError('Periodic pdb not supported by ASE.')
-
-    #if cell is None:
-        # cell could not be established from the file, so we set it on the
-        # Atoms now if possible:
-    #    cell, kwargs = kwargs2cell(kwargs)
-    #    if cell is not None:
-    #        cell *= length_unit
-    #    if cell is not None and atoms is not None:
-    #        atoms.cell = cell
-        # In case of boxshape = sphere and similar, we still do not have
-        # a cell.
-
-    ndims = int(kwargs.get('dimensions', 3))
-    if ndims != 3:
-        raise NotImplementedError('Only 3D calculations supported.')
-
-    coords = kwargs.get('coordinates')
-    if coords is not None:
-        numbers, positions = get_positions_from_block('coordinates')
-        positions *= length_unit
-        adjust_positions_by_half_cell = True
-        atoms = Atoms(cell=cell, numbers=numbers, positions=positions)
-    rcoords = kwargs.get('reducedcoordinates')
-    if rcoords is not None:
-        numbers, rpositions = get_positions_from_block('reducedcoordinates')
-        #if cell is None:
-        #    raise ValueError('Cannot figure out what the cell is, '
-        #                     'and thus cannot interpret reduced coordinates.')
-        atoms = Atoms(cell=cell, numbers=numbers, positions=rpositions)
-        # Very invalid, but we get (scaled) positions from elsewhere anyway
-    if atoms is None:
-        raise OctopusParseError('Apparently there are no atoms.')
-
-    # Either we have non-periodic BCs or the atoms object already
-    # got its BCs from reading the file.  In the latter case
-    # we shall override only if PeriodicDimensions was given specifically:
-
-    if pbc is None:
-        pdims = int(kwargs.pop('periodicdimensions', 0))
-        pbc = np.zeros(3, dtype=bool)
-        pbc[:pdims] = True
-        atoms.pbc = pbc
-
-    if (cell is not None and cell.shape == (3,)
-        and adjust_positions_by_half_cell):
-        nonpbc = (atoms.pbc == 0)
-        atoms.positions[:, nonpbc] += np.array(cell)[None, nonpbc] / 2.0
-
-    return atoms, kwargs
-
-
-def atoms2kwargs(atoms, use_ase_cell):
-    kwargs = {}
-
-    positions = atoms.positions / Bohr
-
-    # TODO LatticeVectors parameter for non-orthogonal cells
-    if use_ase_cell:
-        cell = atoms.cell / Bohr
-        if is_orthorhombic(cell):
-            Lsize = 0.5 * np.diag(cell)
-            kwargs['lsize'] = [[repr(size) for size in Lsize]]
-            # ASE uses (0...cell) while Octopus uses -L/2...L/2.
-            # Lsize is really cell / 2, and we have to adjust our
-            # positions by subtracting Lsize (see construction of the coords
-            # block) in non-periodic directions.
-            nonpbc = (atoms.pbc == 0)
-            positions[:, nonpbc] -= Lsize[None, nonpbc]
-        else:
-            kwargs['latticevectors'] = cell.tolist()
-
-    coord_block = [[repr(sym)] + list(map(repr, pos))
-                   for sym, pos in zip(atoms.get_chemical_symbols(),
-                                       positions)]
-
-    kwargs['coordinates'] = coord_block
-    npbc = sum(atoms.pbc)
-    for c in range(npbc):
-        if not atoms.pbc[c]:
-            msg = ('Boundary conditions of Atoms object inconsistent '
-                   'with requirements of Octopus.  pbc must be either '
-                   '000, 100, 110, or 111.')
-            raise ValueError(msg)
-    kwargs['periodicdimensions'] = npbc
-
-    # TODO InitialSpins
-    #
-    # TODO can use maximumiterations + output/outputformat to extract
-    # things from restart file into output files without trouble.
-    #
-    # Velocities etc.?
-    return kwargs
-
-
-def generate_input(atoms, kwargs, normalized2pretty):
-    """Convert atoms and keyword arguments to Octopus input file."""
-    _lines = []
-
-    def append(line):
-        _lines.append(line)
-
-    def extend(lines):
-        _lines.extend(lines)
-        append('')
-
-    def setvar(key, var):
-        prettykey = normalized2pretty[key]
-        append('%s = %s' % (prettykey, var))
-
-    for kw in ['lsize', 'latticevectors', 'latticeparameters']:
-        assert kw not in kwargs
-
-    defaultboxshape = 'parallelepiped' if atoms.pbc.any() else 'minimum'
-    boxshape = kwargs.get('boxshape', defaultboxshape).lower()
-    use_ase_cell = (boxshape == 'parallelepiped')
-    atomskwargs = atoms2kwargs(atoms, use_ase_cell)
-
-    if use_ase_cell:
-        if 'lsize' in atomskwargs:
-            block = list2block('LSize', atomskwargs['lsize'])
-        elif 'latticevectors' in atomskwargs:
-            extend(list2block('LatticeParameters', [[1., 1., 1.]]))
-            block = list2block('LatticeVectors', atomskwargs['latticevectors'])
-        extend(block)
-
-    # Allow override or issue errors?
-    pdim = 'periodicdimensions'
-    if pdim in kwargs:
-        if int(kwargs[pdim]) != int(atomskwargs[pdim]):
-            raise ValueError('Cannot reconcile periodicity in input '
-                             'with that of Atoms object')
-    setvar('periodicdimensions', atomskwargs[pdim])
-
-    # We like to output forces
-    if 'output' in kwargs:
-        output_string = kwargs.pop('output')
-        output_tokens = [token.strip()
-                         for token in output_string.lower().split('+')]
-    else:
-        output_tokens = []
-
-    if 'forces' not in output_tokens:
-        output_tokens.append('forces')
-    setvar('output', ' + '.join(output_tokens))
-    # It is illegal to have output forces without any OutputFormat.
-    # Even though the forces are written in the same format no matter
-    # OutputFormat.  Thus we have to make one up:
-
-    # Old Octopus has 'OutputHow' but new Octopus has 'OutputFormat'.
-    # We have to write the right one.
-    outputkw = 'outputformat'
-    if outputkw not in normalized2pretty:
-        outputkw = 'outputhow'
-    assert outputkw in normalized2pretty
-
-    if outputkw not in kwargs:
-        setvar(outputkw, 'xcrysden')
-
-    for key, val in kwargs.items():
-        # Most datatypes are straightforward but blocks require some attention.
-        if isinstance(val, list):
-            append('')
-            dict_data = list2block(normalized2pretty[key], val)
-            extend(dict_data)
-        else:
-            setvar(key, str(val))
-    append('')
-
-    coord_block = list2block('Coordinates', atomskwargs['coordinates'])
-    extend(coord_block)
-    return '\n'.join(_lines)
 
 
 def read_static_info_kpoints(fd):
@@ -862,63 +549,10 @@ class Octopus(FileIOCalculator):
 
     special_ase_keywords = set(['kpts'])
 
-    def __init__(self,
-                 restart=None,
-                 label=None,
-                 atoms=None,
-                 command='octopus',
-                 ignore_troublesome_keywords=None,
-                 check_keywords=True,
-                 _autofix_outputformats=False,
-                 **kwargs):
-        """Create Octopus calculator.
-
-        Label is always taken as a subdirectory.
-        Restart is taken to be a label."""
-
-        # XXX support the specially defined ASE parameters,
-        # "smear" etc.
-
-        # We run oct-help to get a list of all keywords.
-        # This makes us able to robustly construct the input file
-        # in the face of changing octopus versions, and also of
-        # early partial verification of user input.
-        if check_keywords:
-            try:
-                octopus_keywords = get_octopus_keywords()
-            except OSError as err:
-                msg = ('Could not obtain Octopus keyword list from '
-                       'command oct-help: %s.  Octopus not installed in '
-                       'accordance with expectations.  '
-                       'Use check_octopus_keywords=False to override.' % err)
-                raise OSError(msg)
-        else:
-            octopus_keywords = None
-        self.octopus_keywords = octopus_keywords
-        self._autofix_outputformats = _autofix_outputformats
-
-        if restart is not None:
-            if label is not None and restart != label:
-                raise ValueError('restart and label are mutually exclusive '
-                                 'or must at the very least coincide.')
-            label = restart
-
-        if label is None:
-            label = 'ink-pool'
-
-        if ignore_troublesome_keywords:
-            trouble = set(self.troublesome_keywords)
-            for keyword in ignore_troublesome_keywords:
-                trouble.remove(keyword)
-            self.troublesome_keywords = trouble
-
+    def __init__(self, restart):
         self.kwargs = {}
 
-        FileIOCalculator.__init__(self, restart=restart,
-                                  ignore_bad_restart_file=False,
-                                  label=label,
-                                  atoms=atoms,
-                                  command=command, **kwargs)
+        FileIOCalculator.__init__(self, restart=restart, label=restart)
         # The above call triggers set() so we can update self.kwargs.
 
     def set_label(self, label):
@@ -931,8 +565,6 @@ class Octopus(FileIOCalculator):
     def set(self, **kwargs):
         """Set octopus input file parameters."""
         kwargs = normalize_keywords(kwargs)
-        if self.octopus_keywords is not None:
-            self.check_keywords_exist(kwargs)
 
         for keyword in kwargs:
             if keyword in self.troublesome_keywords:
@@ -948,44 +580,13 @@ class Octopus(FileIOCalculator):
         self.kwargs.update(kwargs)
         # XXX should use 'Parameters' but don't know how
 
-    def check_keywords_exist(self, kwargs):
-        keywords = list(kwargs.keys())
-        for keyword in keywords:
-            if (keyword not in self.octopus_keywords
-                and keyword not in self.special_ase_keywords):
-                if self._autofix_outputformats:
-                    if (keyword == 'outputhow' and 'outputformat'
-                            in self.octopus_keywords):
-                        kwargs['outputformat'] = kwargs.pop('outputhow')
-                    if (keyword == 'outputformat' and 'outputhow'
-                            in self.octopus_keywords):
-                        kwargs['outputhow'] = kwargs.pop('outputformat')
-                    continue
-
-                msg = ('Unknown Octopus keyword %s.  Use oct-help to list '
-                       'available keywords.') % keyword
-                raise OctopusKeywordError(msg)
-
     def get_xc_functional(self):
         """Return the XC-functional identifier.
             'LDA', 'PBE', ..."""
         return self.kwargs.get('xcfunctional', 'LDA')
 
-    def get_bz_k_points(self):
-        """Return all the k-points in the 1. Brillouin zone.
-        The coordinates are relative to reciprocal latice vectors."""
-        # Have not found nice way of extracting this information
-        # from Octopus.  Thus unimplemented. -askhl
-        raise NotImplementedError
-
-    def get_charges(self, atoms=None):
-        raise NotImplementedError
-
     def get_fermi_level(self):
         return self.results['efermi']
-
-    def get_potential_energies(self):
-        raise NotImplementedError
 
     def get_dipole_moment(self, atoms=None):
         if 'dipole' not in self.results:
@@ -993,9 +594,6 @@ class Octopus(FileIOCalculator):
                    'You may wish to use SCFCalculateDipole=True')
             raise OctopusIOError(msg)
         return self.results['dipole']
-
-    def get_stresses(self):
-        raise NotImplementedError
 
     def _read_array(self, fname, outputkeyword=None):
         path = self._getpath('static/%s' % fname)
@@ -1180,19 +778,6 @@ class Octopus(FileIOCalculator):
                                 ibz_k_points=kpts,
                                 k_point_weights=kpt_weights)
 
-    def write_input(self, atoms, properties=None, system_changes=None):
-        FileIOCalculator.write_input(self, atoms, properties=properties,
-                                     system_changes=system_changes)
-        octopus_keywords = self.octopus_keywords
-        if octopus_keywords is None:
-            # Will not do automatic pretty capitalization
-            octopus_keywords = self.kwargs
-        txt = generate_input(atoms, process_special_kwargs(atoms, self.kwargs),
-                             octopus_keywords)
-        fd = open(self._getpath('inp'), 'w')
-        fd.write(txt)
-        fd.close()
-
     def read(self, label):
         # XXX label of restart file may not be the same as actual label!
         # This makes things rather tricky.  We first set the label to
@@ -1204,35 +789,9 @@ class Octopus(FileIOCalculator):
         inp_path = self._getpath('inp')
         fd = open(inp_path)
         kwargs = parse_input_file(fd)
-        if self.octopus_keywords is not None:
-            self.check_keywords_exist(kwargs)
 
         #self.atoms, kwargs = kwargs2atoms(kwargs)
         self.kwargs.update(kwargs)
 
         fd.close()
         self.read_results()
-
-
-def main():
-    from ase.build import bulk
-    from ase.calculators.interfacechecker import check_interface
-
-    system = bulk('Si', 'diamond', orthorhombic=True)
-    calc = Octopus(Spacing=0.275,
-                   KPointsGrid=[[2, 2, 2]],
-                   KPointsUseSymmetries=True,
-                   Smearing=0.1,
-                   SmearingFunction='fermi_dirac',
-                   ExtraStates=2,
-                   stdout='"stdout.log"',
-                   stderr='"stderr.log"',
-                   Output='density + potential + wfs',
-                   OutputFormat='xcrysden')
-    system.set_calculator(calc)
-    system.get_potential_energy()
-
-    check_interface(calc)
-
-if __name__ == '__main__':
-    main()

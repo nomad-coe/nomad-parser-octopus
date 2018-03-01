@@ -391,7 +391,7 @@ def parse(fname, fd):
         kwargs = override_keywords(kwargs, parser_log_kwargs, fd)
 
         print('Read as ASE calculator', file=fd)
-        calc = Octopus(dirname, check_keywords=False)
+        calc = Octopus(dirname)
 
         with open_section('section_basis_set_cell_dependent') as basis_set_cell_dependent_gid:
             pew.addValue('basis_set_cell_dependent_kind', 'realspace_grids')
