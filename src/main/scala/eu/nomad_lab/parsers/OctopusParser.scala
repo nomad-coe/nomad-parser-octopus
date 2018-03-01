@@ -48,10 +48,8 @@ Simulation Box:
   resList = Seq(
     "parser-octopus/parser_octopus.py",
     "parser-octopus/aseoct.py",
-    "parser-octopus/octopus_logfile_parser.py",
     "parser-octopus/generate-octopus-json.py",
     "parser-octopus/util.py",
-    "parser-octopus/octopus_info_parser.py",
     "parser-octopus/setup_paths.py",
     "nomad_meta_info/public.nomadmetainfo.json",
     "nomad_meta_info/common.nomadmetainfo.json",

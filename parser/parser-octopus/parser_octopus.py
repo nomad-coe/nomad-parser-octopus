@@ -13,12 +13,9 @@ import setup_paths
 
 from nomadcore.local_meta_info import loadJsonFile, InfoKindEl
 from nomadcore.parser_backend import JsonParseEventsWriterBackend
-from nomadcore.unit_conversion.unit_conversion import convert_unit, \
-    register_userdefined_quantity
+from nomadcore.unit_conversion.unit_conversion import convert_unit
 
 from aseoct import Octopus, parse_input_file
-from octopus_info_parser import parse_infofile
-from octopus_logfile_parser import parse_logfile
 
 """This is the Octopus parser.
 
@@ -41,6 +38,57 @@ debugging, not commonly used.  We will only implement support for
 those if many uploaded calculations contain those formats.  I think it
 is largely irrelevant.
 """
+
+
+def parse_infofile(meta_info_env, pew, fname):
+    with open(fname) as fd:
+        for line in fd:
+            if line.startswith('SCF converged'):
+                iterations = int(line.split()[-2])
+                pew.addValue('x_octopus_info_scf_converged_iterations',
+                             iterations)
+                break
+        for line in fd:  # Jump down to energies:
+            if line.startswith('Energy ['):
+                octunit = line.strip().split()[-1].strip('[]:')
+                nomadunit = {'eV': 'eV', 'H': 'hartree'}[octunit]
+                break
+
+        names = {'Total': 'energy_total',
+                 'Free': 'energy_free',
+                 'Ion-ion': 'x_octopus_info_energy_ion_ion',
+                 'Eigenvalues': 'energy_sum_eigenvalues',
+                 'Hartree': 'energy_electrostatic',
+                 'Exchange': 'energy_X',
+                 'Correlation': 'energy_C',
+                 'vanderWaals': 'energy_van_der_Waals',
+                 '-TS': 'energy_correction_entropy',
+                 'Kinetic': 'electronic_kinetic_energy'}
+
+        for line in fd:
+            if line.startswith('---'):
+                continue
+            tokens = line.split()
+            if len(tokens) < 3:
+                break
+
+            if tokens[0] in names:
+                pew.addValue(names[tokens[0]],
+                             convert_unit(float(tokens[2]), nomadunit))
+
+
+def parse_logfile(meta_info_env, pew, fname):
+    maxlines = 100
+    with open(fname) as fd:
+        for i, line in enumerate(fd):
+            if i > maxlines:
+                break
+            if line.startswith('Version'):
+                version = line.split()[-1]
+                pew.addValue('program_version', version)
+            elif line.startswith('Revision'):
+                revision = int(line.split()[-1])
+                pew.addValue('x_octopus_log_svn_revision', revision)
 
 
 def parse_gridinfo(metaInfoEnv, pew, fname):
@@ -87,8 +135,6 @@ def parse_gridinfo(metaInfoEnv, pew, fname):
 
 def parse_coordinates_from_parserlog(fname):
     results = {}
-
-    units = 'bohr'
 
     def buildblock(block):
         imax = 1 + max(b[0] for b in block)
@@ -167,10 +213,6 @@ def parse_coordinates_from_parserlog(fname):
 def normalize_names(names):
     return [name.lower() for name in names]
 
-
-#ENERGY_UNIT = 'usrOctEnergyUnit'
-#LENGTH_UNIT = 'usrOctLengthUnit'
-
 metaInfoPath = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                              "../../../../nomad-meta-info/meta_info/nomad_meta_info/octopus.nomadmetainfo.json"))
 metaInfoEnv, warnings = loadJsonFile(filePath=metaInfoPath,
@@ -182,7 +224,6 @@ metaInfoEnv, warnings = loadJsonFile(filePath=metaInfoPath,
 metaInfoKinds = metaInfoEnv.infoKinds.copy()
 all_metadata_names = list(metaInfoKinds.keys())
 normalized2real = dict(zip(normalize_names(all_metadata_names), all_metadata_names))
-#assert 'x_octopus_info_scf_converged_iterations' in metaInfoKinds, '\n'.join(list(sorted(metaInfoKinds.keys())))
 # We need access to this information because we want/need to dynamically convert
 # extracted metadata to its correct type.  Thus we need to know the type.
 # Also since input is case insensitive, we need to convert normalized (lowercase)
@@ -211,26 +252,22 @@ def read_parser_log(path):
             if ' ' in name:
                 # Not a real name
                 continue
-                #print(name)
-            # Octopus questionably writes this one twice
-            #if name != 'speciesprojectorspherethreshold':
             exec_kwargs[name] = value
     return exec_kwargs
 
 
 def is_octopus_logfile(fname):
-    fd = open(fname)
-    for n, line in enumerate(fd):
-        if n > 20:
-            break
-        if '|0) ~ (0) |' in line:  # Eyes from Octopus logo
-            return True
+    with open(fname) as fd:
+        for n, line in enumerate(fd):
+            if n > 20:
+                break
+            if '|0) ~ (0) |' in line:  # Eyes from Octopus logo
+                return True
     return False
 
 
 def find_octopus_logfile(dirname):
-    allfnames = glob('%s/*' % dirname)
-    for fname in allfnames:
+    for fname in os.listdir(dirname):
         if os.path.isfile(fname) and is_octopus_logfile(fname):
             return fname
     return None
@@ -273,28 +310,6 @@ def override_keywords(kwargs, parser_log_kwargs, fd):
 
             outkwargs[name] = parser_log_kwargs[name]
     return outkwargs
-
-
-def register_units(kwargs, fd):
-    units = kwargs.get('units', 'atomic').lower()
-    if units == 'atomic':
-        length_unit = 'bohr'
-        energy_unit = 'hartree'
-    elif units == 'ev_angstrom':
-        length_unit = 'angstrom'
-        energy_unit = 'eV'
-    else:
-        raise ValueError('Unknown units: %s' % units)
-
-    if 'unitsinput' in kwargs:
-        raise ValueError('UnitsInput not supported')
-    if 'unitsoutput' in kwargs:
-        raise ValueError('UnitsOutput not supported')
-
-    print('Set units: energy=%s, length=%s' % (energy_unit, length_unit),
-          file=fd)
-    register_userdefined_quantity(ENERGY_UNIT, energy_unit)
-    register_userdefined_quantity(LENGTH_UNIT, length_unit)
 
 
 metadata_dtypes = {'b': bool,
@@ -375,19 +390,12 @@ def parse(fname, fd):
         print('Override certain keywords with processed keywords', file=fd)
         kwargs = override_keywords(kwargs, parser_log_kwargs, fd)
 
-        #register_units(kwargs, fd)
-
         print('Read as ASE calculator', file=fd)
         calc = Octopus(dirname, check_keywords=False)
-        #atoms = calc.get_atoms()
 
         with open_section('section_basis_set_cell_dependent') as basis_set_cell_dependent_gid:
             pew.addValue('basis_set_cell_dependent_kind', 'realspace_grids')
-            # XXX FIXME spacing can very rarely be 3 numbers!
-            # uuh there is no meaningful way to set grid spacing
-        #    pass
-        #cubefiles = glob('staticdirname/*.cube')
-        #cubefiles.sort()
+            # How does nomad want grid spacing?
 
         nbands = calc.get_number_of_bands()
         nspins = calc.get_number_of_spins()
@@ -506,16 +514,17 @@ def parse(fname, fd):
                              float(parser_log_kwargs['excesscharge']))
                 oct_theory_level = kwargs.get('theorylevel', 'dft')
 
-                theory_levels = dict(#independent_particles='',
-                                     #hartree='',
-                                     #hartree_fock='',
-                                     dft='DFT')
-                                     #classical='',
-                                     #rdmft='')
+                theory_levels = dict(independent_particles='independent_particles',  # not defined by Nomad
+                                     hartree='Hartree',  # not defined by Nomad
+                                     hartree_fock='DFT',  # nomad wants it that way
+                                     dft='DFT',
+                                     classical='Classical',  # Not defined by Nomad
+                                     rdmft='RDMFT')  # Not defined by Nomad
                 # TODO how do we warn if we get an unexpected theory level?
+                # Currently: KeyError
                 nomad_theory_level = theory_levels[oct_theory_level]
 
-                pew.addValue('electronic_structure_method', 'DFT')
+                pew.addValue('electronic_structure_method', nomad_theory_level)
 
                 if oct_theory_level == 'dft':
                     ndim = int(kwargs.get('dimensions', 3))
