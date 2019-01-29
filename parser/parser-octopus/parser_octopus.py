@@ -57,6 +57,9 @@ those if many uploaded calculations contain those formats.  I think it
 is largely irrelevant.
 """
 
+def metaN(metaName):
+    """Retrurns a normalized meta name"""
+    return metaName.replace(".", "_").lower()
 
 def parse_infofile(meta_info_env, pew, fname):
     with open(fname) as fd:
@@ -77,9 +80,9 @@ def parse_infofile(meta_info_env, pew, fname):
                  'Ion-ion': 'x_octopus_info_energy_ion_ion',
                  'Eigenvalues': 'energy_sum_eigenvalues',
                  'Hartree': 'energy_electrostatic',
-                 'Exchange': 'energy_X',
-                 'Correlation': 'energy_C',
-                 'vanderWaals': 'energy_van_der_Waals',
+                 'Exchange': 'energy_x',
+                 'Correlation': 'energy_c',
+                 'vanderWaals': 'energy_van_der_waals',
                  '-TS': 'energy_correction_entropy',
                  'Kinetic': 'electronic_kinetic_energy'}
 
@@ -91,7 +94,7 @@ def parse_infofile(meta_info_env, pew, fname):
                 break
 
             if tokens[0] in names:
-                pew.addValue(names[tokens[0]],
+                pew.addValue(metaN(names[tokens[0]]),
                              convert_unit(float(tokens[2]), nomadunit))
 
 
@@ -364,7 +367,7 @@ def register_octopus_keywords(pew, category, kwargs):
             # Some keywords (e.g. Spacing) specify float as type, but they
             # can actually be blocks.  (block is a type itself)
         else:
-            pew.addValue(name, value)
+            pew.addValue(metaN(name), value)
 
 
 def parse(fname, fd):
@@ -553,16 +556,20 @@ def parse(fname, fd):
                     xcfunctional = kwargs.get('xcfunctional', default_xc)
                     for functional in xcfunctional.split('+'):
                         functional = functional.strip().upper()
-                        with open_section('section_XC_functionals'):
-                            pew.addValue('XC_functional_name', functional)
+                        with open_section('section_xc_functionals'):
+                            pew.addValue('xc_functional_name', functional)
 
                 forces = calc.results.get('forces')
                 if forces is not None:
-                    pew.addArrayValues('atom_forces_free_raw',
+                    fId = pew.openSection('section_atom_forces')
+                    pew.addValue('atom_forces_quantity', 'energy_free')
+                    pew.addValue('atom_forces_constraints', 'raw')
+                    pew.addArrayValues('atom_forces',
                                        convert_unit(forces, 'eV'))
+                    pew.closeSection('section_atom_forces', fId)
                 # Convergence parameters?
 
-            pew.addValue('single_configuration_to_calculation_method_ref',
+            pew.addValue('single_configuration_calculation_to_method_ref',
                          method_gid)
 
             with open_section('section_eigenvalues'):

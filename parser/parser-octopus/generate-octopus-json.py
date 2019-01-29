@@ -56,6 +56,10 @@ json_section_template = """{
 
 
 
+def metaN(metaName):
+    """Retrurns a normalized meta name"""
+    return metaName.replace(".", "_").lower()
+
 class OctInputVar:
     def __init__(self, name, octtype, section):
         self.name = name
@@ -65,7 +69,7 @@ class OctInputVar:
     def _get_json(self, role, supername):
         description = (r'Octopus %s \"%s\" of type \"%s\" in section \"%s\"'
                        % (role, self.name, self.octtype, self.section))
-        return json_template % dict(name='%s_%s' % (supername, self.name),
+        return json_template % dict(name=metaN('%s_%s' % (supername, self.name)),
                                     dtypeStr=octtype2nomadtype[self.octtype],
                                     supername=supername,
                                     description=description)
