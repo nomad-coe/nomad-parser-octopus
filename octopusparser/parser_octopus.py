@@ -1,11 +1,11 @@
 # Copyright 2015-2018 Ask Hjorth Larsen, Fawzi Mohamed, Ankit Kariryaa
-# 
+#
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
 #   You may obtain a copy of the License at
-# 
+#
 #     http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 #   Unless required by applicable law or agreed to in writing, software
 #   distributed under the License is distributed on an "AS IS" BASIS,
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -24,16 +24,17 @@ from glob import glob
 from contextlib import contextmanager
 
 import numpy as np
+import logging
 from ase.units import Bohr
 from ase.io import read
 
-import setup_paths
+# import setup_paths
 
 from nomadcore.local_meta_info import loadJsonFile, InfoKindEl
 from nomadcore.parser_backend import JsonParseEventsWriterBackend
 from nomadcore.unit_conversion.unit_conversion import convert_unit
 
-from aseoct import Octopus, parse_input_file
+from octopusparser.aseoct import Octopus, parse_input_file
 
 """This is the Octopus parser.
 
@@ -232,7 +233,7 @@ def normalize_names(names):
     return [name.lower() for name in names]
 
 metaInfoPath = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                             "../../../../nomad-meta-info/meta_info/nomad_meta_info/octopus.nomadmetainfo.json"))
+                                             "../../../../dependencies/nomad-meta-info/meta_info/nomad_meta_info/octopus.nomadmetainfo.json"))
 metaInfoEnv, warnings = loadJsonFile(filePath=metaInfoPath,
                                      dependencyLoader=None,
                                      extraArgsHandling=InfoKindEl.ADD_EXTRA_ARGS,
@@ -286,12 +287,13 @@ def is_octopus_logfile(fname):
 
 def find_octopus_logfile(dirname):
     for fname in os.listdir(dirname):
+        fname = os.path.join(dirname, fname)
         if os.path.isfile(fname) and is_octopus_logfile(fname):
             return fname
     return None
 
 
-def override_keywords(kwargs, parser_log_kwargs, fd):
+def override_keywords(kwargs, parser_log_kwargs):
     # Some variables we can get from the input file, but they may
     # contain arithmetic and variable assignments which cannot
     # just be parsed into a final value.  The output of the
@@ -321,10 +323,13 @@ def override_keywords(kwargs, parser_log_kwargs, fd):
                 outkwargs[name] = [lsize]
                 continue
 
-            print('Keyword %s with value %s overridden by value '
-                  '%s obtained from parser log'
-                  % (name, kwargs[name], parser_log_kwargs[name]),
-                  file=fd)
+            # print('Keyword %s with value %s overridden by value '
+            #       '%s obtained from parser log'
+            #       % (name, kwargs[name], parser_log_kwargs[name]),
+            #       file=fd)
+            logging.debug('Keyword %s with value %s overridden by value '
+                '%s obtained from parser log'
+                % (name, kwargs[name], parser_log_kwargs[name]))
 
             outkwargs[name] = parser_log_kwargs[name]
     return outkwargs
@@ -367,18 +372,23 @@ def register_octopus_keywords(pew, category, kwargs):
             pew.addValue(name, value)
 
 
-def parse(fname, fd):
+def parse_without_class(fname, backend, parser_info):
     # fname refers to the static/info file.
     # Look for files before we create some of our own files for logging etc.:
+    # fd = stdout # Print output to stdout
     absfname = os.path.abspath(fname)
-    staticdirname, _basefname = os.path.split(absfname)
-    dirname, _static = os.path.split(staticdirname)
-    assert _static == 'static'
+    # staticdirname, _basefname = os.path.split(absfname)
+    # dirname, _static = os.path.split(staticdirname)
+    dirname = os.path.dirname(os.path.abspath(fname))
+    # assert _static == 'static'
     inp_path = os.path.join(dirname, 'inp')
     parser_log_path = os.path.join(dirname, 'exec', 'parser.log')
     logfile = find_octopus_logfile(dirname)
 
-    pew = JsonParseEventsWriterBackend(metaInfoEnv)
+    # pew = JsonParseEventsWriterBackend(metaInfoEnv)
+    # pew.startedParsingSession(fname, parser_info)
+
+    pew = backend
     pew.startedParsingSession(fname, parser_info)
 
     # this context manager shamelessly copied from GPAW parser
@@ -393,22 +403,27 @@ def parse(fname, fd):
         pew.addValue('program_name', 'Octopus')
         pew.addValue('program_basis_set_type', 'Real-space grid')
 
-        print(file=fd)
-        print('Read Octopus keywords from input file %s' % inp_path,
-              file=fd)
+        # print(file=fd)
+        # print('Read Octopus keywords from input file %s' % inp_path,
+        #       file=fd)
+        logging.debug('Read Octopus keywords from input file %s' % inp_path)
+
         with open(inp_path) as inp_fd:
             kwargs = parse_input_file(inp_fd)
         register_octopus_keywords(pew, 'input', kwargs)
 
-        print('Read processed Octopus keywords from octparse logfile %s'
-              % parser_log_path, file=fd)
+        # print('Read processed Octopus keywords from octparse logfile %s'
+        #       % parser_log_path, file=fd)
+        logging.debug(
+            'Read processed Octopus keywords from octparse logfile %s' % parser_log_path)
+
         parser_log_kwargs = read_parser_log(parser_log_path)
         register_octopus_keywords(pew, 'parserlog', parser_log_kwargs)
 
-        print('Override certain keywords with processed keywords', file=fd)
-        kwargs = override_keywords(kwargs, parser_log_kwargs, fd)
+        # print('Override certain keywords with processed keywords', file=fd)
+        kwargs = override_keywords(kwargs, parser_log_kwargs)
 
-        print('Read as ASE calculator', file=fd)
+        # print('Read as ASE calculator', file=fd)
         calc = Octopus(dirname)
 
         with open_section('section_basis_set_cell_dependent') as basis_set_cell_dependent_gid:
@@ -420,13 +435,16 @@ def parse(fname, fd):
         nkpts = len(calc.get_k_point_weights())
 
         if logfile is None:
-            print('No stdout logfile found', file=fd)
+            # print('No stdout logfile found', file=fd)
+            logging.debug('No stdout logfile found')
         else:
-            print('Found stdout logfile %s' % logfile, file=fd)
-            print('Parse logfile %s' % logfile, file=fd)
+            # print('Found stdout logfile %s' % logfile, file=fd)
+            logging.debug('Found stdout logfile %s' % logfile)
+            # print('Parse logfile %s' % logfile, file=fd)
+            logging.debug('Parse logfile %s' % logfile)
             parse_logfile(metaInfoEnv, pew, logfile)
 
-        print('Add parsed values', file=fd)
+        # print('Add parsed values', file=fd)
         with open_section('section_system') as system_gid:
             gridinfo = parse_gridinfo(metaInfoEnv, pew, fname)
             cell_unit = gridinfo['unit']
@@ -499,7 +517,8 @@ def parse(fname, fd):
         with open_section('section_single_configuration_calculation'):
             pew.addValue('single_configuration_calculation_to_system_ref',
                          system_gid)
-            print('Parse info file %s' % fname, file=fd)
+            # print('Parse info file %s' % fname, file=fd)
+            logging.debug('Parse info file %s' % fname)
             parse_infofile(metaInfoEnv, pew, fname)
 
             with open_section('section_method') as method_gid:
@@ -587,6 +606,30 @@ def parse(fname, fd):
                 pew.addArrayValues('eigenvalues_occupation', occ)
 
     pew.finishedParsingSession('ParseSuccess', None)
+    return backend
+
+
+class OctopusParserWrapper():
+    """ A proper class envolop for running this parser using Noamd-FAIRD infra. """
+    def __init__(self, backend, **kwargs):
+        self.backend_factory = backend
+
+    def parse(self, mainfile):
+        import nomad_meta_info
+        metaInfoPath = os.path.normpath(os.path.join(os.path.dirname(
+            os.path.abspath(nomad_meta_info.__file__)), "octopus.nomadmetainfo.json"))
+        metaInfoEnv, warnings = loadJsonFile(
+            filePath = metaInfoPath, dependencyLoader = None,
+            extraArgsHandling = InfoKindEl.ADD_EXTRA_ARGS, uri = None)
+        from unittest.mock import patch
+        logging.info('octopus parser started')
+        logging.getLogger('nomadcore').setLevel(logging.WARNING)
+        backend = self.backend_factory(metaInfoEnv)
+        # Call the old parser without a class.
+        parserInfo = parser_info
+        backend = parse_without_class(mainfile, backend, parserInfo)
+        return backend
+
 
 if __name__ == '__main__':
     fname = sys.argv[1]
