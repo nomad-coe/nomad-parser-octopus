@@ -30,6 +30,7 @@ from ase.io import read
 
 # import setup_paths
 
+import nomad_meta_info
 from nomadcore.local_meta_info import loadJsonFile, InfoKindEl
 from nomadcore.parser_backend import JsonParseEventsWriterBackend
 from nomadcore.unit_conversion.unit_conversion import convert_unit
@@ -232,12 +233,14 @@ def parse_coordinates_from_parserlog(fname):
 def normalize_names(names):
     return [name.lower() for name in names]
 
-metaInfoPath = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                             "../../../../dependencies/nomad-meta-info/meta_info/nomad_meta_info/octopus.nomadmetainfo.json"))
-metaInfoEnv, warnings = loadJsonFile(filePath=metaInfoPath,
-                                     dependencyLoader=None,
-                                     extraArgsHandling=InfoKindEl.ADD_EXTRA_ARGS,
-                                     uri=None)
+
+metaInfoPath = os.path.normpath(os.path.join(os.path.dirname(
+    os.path.abspath(nomad_meta_info.__file__)), "octopus.nomadmetainfo.json"))
+
+metaInfoEnv, warnings = loadJsonFile(
+    filePath = metaInfoPath, dependencyLoader = None,
+    extraArgsHandling = InfoKindEl.ADD_EXTRA_ARGS, uri = None)
+
 
 # Dictionary of all meta info:
 metaInfoKinds = metaInfoEnv.infoKinds.copy()
@@ -615,13 +618,6 @@ class OctopusParserWrapper():
         self.backend_factory = backend
 
     def parse(self, mainfile):
-        import nomad_meta_info
-        metaInfoPath = os.path.normpath(os.path.join(os.path.dirname(
-            os.path.abspath(nomad_meta_info.__file__)), "octopus.nomadmetainfo.json"))
-        metaInfoEnv, warnings = loadJsonFile(
-            filePath = metaInfoPath, dependencyLoader = None,
-            extraArgsHandling = InfoKindEl.ADD_EXTRA_ARGS, uri = None)
-        from unittest.mock import patch
         logging.info('octopus parser started')
         logging.getLogger('nomadcore').setLevel(logging.WARNING)
         backend = self.backend_factory(metaInfoEnv)
