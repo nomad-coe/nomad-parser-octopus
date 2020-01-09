@@ -478,24 +478,33 @@ def parse_without_class(fname, backend, parser_info):
             else:
                 input_units = 'bohr'
 
-            staticdir, _info = os.path.split(fname)
-            inpdir, _static = os.path.split(staticdir)
-
-            if 'PDBCoordinates' in coordinfo:
-                atoms = read(os.path.join(inpdir, coordinfo['PDBCoordinates']), format='proteindatabank')
-            elif 'XYZCoordinates' in coordinfo:
-                atoms = read(os.path.join(inpdir, coordinfo['XYZCoordinates']), format='xyz')
-            elif 'XSFCoordinates' in coordinfo:
-                if 'XSFCoordinatesAnimStep' in coordinfo:
-                    assert 0  # XXX read correct step.  Take 1-indexation into account
-                atoms = read(os.path.join(inpdir, coordinfo['XSFCoordinates']), format='xsf')
-            elif 'coords' in coordinfo:
-                coords = coordinfo['coords']
-                if input_units == 'angstrom':
-                    coords /= Bohr
-            elif 'rcoords' in coordinfo:
-                # unit will be Bohr cf. handling of cell above
-                coords = np.dot(coordinfo['rcoords'], cell)
+            parent_dir, _ = os.path.split(fname)
+            inpdir = parent_dir
+            # try to read files from the same or parent directory
+            while True:
+                try:
+                    if 'PDBCoordinates' in coordinfo:
+                        atoms = read(os.path.join(inpdir, coordinfo['PDBCoordinates']), format='proteindatabank')
+                    elif 'XYZCoordinates' in coordinfo:
+                        atoms = read(os.path.join(inpdir, coordinfo['XYZCoordinates']), format='xyz')
+                    elif 'XSFCoordinates' in coordinfo:
+                        if 'XSFCoordinatesAnimStep' in coordinfo:
+                            assert 0  # XXX read correct step.  Take 1-indexation into account
+                        atoms = read(os.path.join(inpdir, coordinfo['XSFCoordinates']), format='xsf')
+                    elif 'coords' in coordinfo:
+                        coords = coordinfo['coords']
+                        if input_units == 'angstrom':
+                            coords /= Bohr
+                    elif 'rcoords' in coordinfo:
+                        # unit will be Bohr cf. handling of cell above
+                        coords = np.dot(coordinfo['rcoords'], cell)
+                except FileNotFoundError as e:
+                    if inpdir == parent_dir:
+                        inpdir, _ = os.path.split(inpdir)
+                    else:
+                        raise e
+                else:
+                    break
 
             if atoms is not None:
                 coords = atoms.positions / Bohr
