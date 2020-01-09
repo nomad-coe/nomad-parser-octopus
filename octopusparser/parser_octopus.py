@@ -279,12 +279,18 @@ def read_parser_log(path):
 
 
 def is_octopus_logfile(fname):
-    with open(fname) as fd:
-        for n, line in enumerate(fd):
-            if n > 20:
-                break
-            if '|0) ~ (0) |' in line:  # Eyes from Octopus logo
-                return True
+    try:
+        with open(fname) as fd:
+            for n, line in enumerate(fd):
+                if n > 20:
+                    break
+                if '|0) ~ (0) |' in line:  # Eyes from Octopus logo
+                    return True
+    except UnicodeDecodeError:
+        # ingnore files that cannot be decoded, there are not the files
+        # we are looking for
+        pass
+
     return False
 
 
