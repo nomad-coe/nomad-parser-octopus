@@ -20,7 +20,6 @@ from __future__ import print_function
 import re
 import os
 import sys
-from glob import glob
 from contextlib import contextmanager
 
 import numpy as np
@@ -30,9 +29,6 @@ from ase.io import read
 
 # import setup_paths
 
-import nomad_meta_info
-from nomadcore.local_meta_info import loadJsonFile, InfoKindEl
-from nomadcore.parser_backend import JsonParseEventsWriterBackend
 from nomadcore.unit_conversion.unit_conversion import convert_unit
 
 from octopusparser.aseoct import Octopus, parse_input_file
@@ -59,6 +55,7 @@ those if many uploaded calculations contain those formats.  I think it
 is largely irrelevant.
 """
 
+metaInfoEnv = None
 
 def parse_infofile(meta_info_env, pew, fname):
     with open(fname) as fd:
@@ -233,23 +230,8 @@ def parse_coordinates_from_parserlog(fname):
 def normalize_names(names):
     return [name.lower() for name in names]
 
-
-metaInfoPath = os.path.normpath(os.path.join(os.path.dirname(
-    os.path.abspath(nomad_meta_info.__file__)), "octopus.nomadmetainfo.json"))
-
-metaInfoEnv, warnings = loadJsonFile(
-    filePath = metaInfoPath, dependencyLoader = None,
-    extraArgsHandling = InfoKindEl.ADD_EXTRA_ARGS, uri = None)
-
-
 # Dictionary of all meta info:
-metaInfoKinds = metaInfoEnv.infoKinds.copy()
-all_metadata_names = list(metaInfoKinds.keys())
-normalized2real = dict(zip(normalize_names(all_metadata_names), all_metadata_names))
-# We need access to this information because we want/need to dynamically convert
-# extracted metadata to its correct type.  Thus we need to know the type.
-# Also since input is case insensitive, we need to convert normalized (lowercase)
-# metadata names to their real names which are normally CamelCase.
+normalized2real = None
 
 
 parser_info = {
@@ -394,7 +376,6 @@ def parse_without_class(fname, backend, parser_info):
     parser_log_path = os.path.join(dirname, 'exec', 'parser.log')
     logfile = find_octopus_logfile(dirname)
 
-    # pew = JsonParseEventsWriterBackend(metaInfoEnv)
     # pew.startedParsingSession(fname, parser_info)
 
     pew = backend
@@ -635,7 +616,19 @@ class OctopusParserWrapper():
     def parse(self, mainfile):
         logging.info('octopus parser started')
         logging.getLogger('nomadcore').setLevel(logging.WARNING)
-        backend = self.backend_factory(metaInfoEnv)
+        backend = self.backend_factory("octopus.nomadmetainfo.json")
+
+        # We need access to this information because we want/need to dynamically convert
+        # extracted metadata to its correct type.  Thus we need to know the type.
+        # Also since input is case insensitive, we need to convert normalized (lowercase)
+        # metadata names to their real names which are normally CamelCase.
+        global metaInfoEnv
+        metaInfoEnv = backend.metaInfoEnv()
+        metaInfoKinds = metaInfoEnv.infoKinds.copy()
+        all_metadata_names = list(metaInfoKinds.keys())
+        global normalized2real
+        normalized2real = dict(zip(normalize_names(all_metadata_names), all_metadata_names))
+
         # Call the old parser without a class.
         parserInfo = parser_info
         backend = parse_without_class(mainfile, backend, parserInfo)
