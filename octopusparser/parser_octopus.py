@@ -623,11 +623,12 @@ class OctopusParserWrapper():
         # Also since input is case insensitive, we need to convert normalized (lowercase)
         # metadata names to their real names which are normally CamelCase.
         global metaInfoEnv
-        metaInfoEnv = backend.metaInfoEnv()
-        metaInfoKinds = metaInfoEnv.infoKinds.copy()
-        all_metadata_names = list(metaInfoKinds.keys())
-        global normalized2real
-        normalized2real = dict(zip(normalize_names(all_metadata_names), all_metadata_names))
+        if metaInfoEnv is None:
+            metaInfoEnv = backend.metaInfoEnv()
+            metaInfoKinds = metaInfoEnv.infoKinds.copy()
+            all_metadata_names = list(metaInfoKinds.keys())
+            global normalized2real
+            normalized2real = dict(zip(normalize_names(all_metadata_names), all_metadata_names))
 
         # Call the old parser without a class.
         parserInfo = parser_info
