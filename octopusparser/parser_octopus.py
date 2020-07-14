@@ -58,13 +58,30 @@ is largely irrelevant.
 metaInfoEnv = None
 
 def parse_infofile(meta_info_env, pew, fname):
+    # print('\n\n### parse_infofile()')
+    # print('\tPROBLEM: {}\n\t{} ' .format(fname, 'should be static/info!!'))
     with open(fname) as fd:
         for line in fd:
+            # print(line)
             if line.startswith('SCF converged'):
                 iterations = int(line.split()[-2])
                 pew.addValue('x_octopus_info_scf_converged_iterations',
                              iterations)
+            # - - - -
+            if  line.startswith('Fermi'):
+                # print('\tLINE:', line)
+                #pew.addValue('energy_reference_fermi', fermiref)
                 break
+        # ############
+        # CHAT WITH MARKUS
+        for line in fd:  # Jump down to Fermi FIXME as in FIRST BLOCK
+            # beware of units
+            # 'Fermi energy': 'energy_reference_fermi'
+            if line.startswith('Fermi'):
+                #octunit = line.strip().split()[-1].strip('[]:')
+                #nomadunit = {'eV': 'eV', 'H': 'hartree'}[octunit] # keep it
+                break
+
         for line in fd:  # Jump down to energies:
             if line.startswith('Energy ['):
                 octunit = line.strip().split()[-1].strip('[]:')
@@ -92,6 +109,11 @@ def parse_infofile(meta_info_env, pew, fname):
             if tokens[0] in names:
                 pew.addValue(names[tokens[0]],
                              convert_unit(float(tokens[2]), nomadunit))
+            if tokens[0] == 'Fermi energy':
+                # print(tokens)
+            # print('#', line)
+
+
 
 
 def parse_logfile(meta_info_env, pew, fname):
@@ -241,6 +263,7 @@ parser_info = {
 
 def read_parser_log(path):
     exec_kwargs = {}
+    # print("\n\nPATH: ", path) # 'exec/parser.log'
     with open(path) as fd:
         for line in fd:
             # Remove comment:
@@ -364,6 +387,7 @@ def register_octopus_keywords(pew, category, kwargs):
 
 
 def parse_without_class(fname, backend, parser_info):
+    # print('# ', fname )
     # fname refers to the static/info file.
     # Look for files before we create some of our own files for logging etc.:
     # fd = stdout # Print output to stdout
@@ -516,7 +540,7 @@ def parse_without_class(fname, backend, parser_info):
         with open_section('section_single_configuration_calculation'):
             pew.addValue('single_configuration_calculation_to_system_ref',
                          system_gid)
-            # print('Parse info file %s' % fname, file=fd)
+            # print('Parse info file %s' % fname) #, file=fd)
             logging.debug('Parse info file %s' % fname)
             parse_infofile(metaInfoEnv, pew, fname)
 
@@ -639,5 +663,6 @@ class OctopusParserWrapper():
 if __name__ == '__main__':
     fname = sys.argv[1]
     logfname = 'parse.log'
+    # print('pppp')
     with open(logfname, 'w') as fd:
         parse(fname, fd)
