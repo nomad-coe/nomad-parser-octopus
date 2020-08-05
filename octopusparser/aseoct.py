@@ -310,8 +310,14 @@ def read_static_info_kpoints(fd):
     return dict(ibz_k_points=ibz_k_points, k_point_weights=k_point_weights)
 
 
-def read_static_info_eigenvalues(fd, energy_unit):
-    #import os # tmk
+#def read_static_info_eigenvalues(fd, energy_unit):
+def read_static_info_eigenvalues_efermi(fd, energy_unit):
+    '''
+    Parse eigenvalues and Fermi Energy from `static/info`
+    fd: file descriptor
+    energy_unit: string
+    Returns: dictionary
+    '''
     values_sknx = {}
 
     nbands = 0
@@ -321,14 +327,11 @@ def read_static_info_eigenvalues(fd, energy_unit):
         if line.startswith('#'):
             continue
         if line.startswith('Fermi'): # tmk
-            pass # print(line)
+            # print(line, '##') #  OK!
+            tokens = line.split()
+            unit = {'eV': eV, 'H': Hartree}[tokens[-1]]
+            eFermi = float(tokens[-2]) * unit
         if not line[:1].isdigit():
-            # print('hithere', line)
-            # I SHOULD JUMP BACK ONE LINE RIGTH HERE
-            # fd.seek(-len(line))
-            # I TRIED THIS:
-            # fd.seek(fd.tell() - len(line))
-            #   -> "OSError: telling position disabled by next() call"
             break
 
         tokens = line.split()
@@ -351,11 +354,13 @@ def read_static_info_eigenvalues(fd, energy_unit):
     eps_skn = eps_skn.transpose(1, 0, 2).copy()
     occ_skn = occ_skn.transpose(1, 0, 2).copy()
     assert eps_skn.flags.contiguous
+    #print('save to dictionary: ', nspins, nkpts, nbands, eps_skn, occ_skn, eFermi)
     return dict(nspins=nspins,
                 nkpts=nkpts,
                 nbands=nbands,
                 eigenvalues=eps_skn,
-                occupations=occ_skn)
+                occupations=occ_skn,
+                efermi=eFermi)
 
 
 def read_static_info_energy(fd, energy_unit):
@@ -367,34 +372,22 @@ def read_static_info_energy(fd, energy_unit):
 
 
 def read_static_info(fd):
+    # fd: file descriptor
     results = {}
-    # print('?????????????????????', type(fd)) # tmk
-    # print('read_static_info()@aseoct.py') # tmk
     def get_energy_unit(line):  # Convert "title [unit]": ---> unit
         return {'[eV]': eV, '[H]': Hartree}[line.split()[1].rstrip(':')]
 
     for line in fd:
-        # print('line::', line.strip())
-        if line.startswith('Fermi'):
-            #print('EUREKA:', line)
         if line.strip('*').strip().startswith('Brillouin zone'):
-            #print('X1', line)
             results.update(read_static_info_kpoints(fd))
         elif line.startswith('Eigenvalues ['):
-            #print('X2', line)
             unit = get_energy_unit(line)
-            results.update(read_static_info_eigenvalues(fd, unit))
-            fd.seek(0, 0) # TMK:
-        elif line.startswith('Fermi'):
-            #print('X2b1') # TMK:
-            fd.seek(-1, 1)  # TMK:
-            #print('X2b2', line)
+            results.update(read_static_info_eigenvalues_efermi(fd, unit))
+            ## print('I found:', results['efermi'])
         elif line.startswith('Energy ['):
-            #print('\nX3', line)
             unit = get_energy_unit(line)
             results.update(read_static_info_energy(fd, unit))
         elif line.startswith('Total Magnetic Moment'):
-            #print('X4', line)
             if 0:
                 line = next(fd)
                 values = line.split()
@@ -415,12 +408,10 @@ def read_static_info(fd):
 
                 results['magmoms'] = np.array(mag_moment)
         elif line.startswith('Dipole'):
-            #print('X5', line)
             assert line.split()[-1] == '[Debye]'
             dipole = [float(next(fd).split()[-1]) for i in range(3)]
             results['dipole'] = np.array(dipole) * Debye
         elif line.startswith('Forces'):
-            #print('X6', line)
             forceunitspec = line.split()[-1]
             forceunit = {'[eV/A]': eV / Angstrom,
                          '[H/b]': Hartree / Bohr}[forceunitspec]
@@ -434,22 +425,16 @@ def read_static_info(fd):
                 forces.append([float(f) for f in tokens])
             results['forces'] = np.array(forces) * forceunit
         elif line.startswith('Fermi'):
-            #print('X7', line)
+            # this check is 'one line too late'
+            # hence we capture Fermi energy from
+            # `read_static_info_eigenvalues()`
+            # print('Point 1', line)
             tokens = line.split()
             unit = {'eV': eV, 'H': Hartree}[tokens[-1]]
             eFermi = float(tokens[-2]) * unit
             results['efermi'] = eFermi
-            #print('####1', line)
-
-        # TMK: MARKUS:the last `elif` should be simply `if`
-        # otherwise when the head `if` is True
-        # then all other `elif`s wont be evaluated
-        if line.startswith('Fermi'):
-            tokens = line.split()
-            unit = {'eV': eV, 'H': Hartree}[tokens[-1]]
-            eFermi = float(tokens[-2]) * unit
-            results['efermi'] = eFermi
-            print('####2', line)
+            # print("helloo, eFermi:", eFermi, unit)
+            # print('####1', line)
 
 
     if 'ibz_k_points' not in results:
@@ -467,8 +452,9 @@ def read_static_info(fd):
                 break
         eFermi = all_energies[arg]
         results['efermi'] = eFermi
-        print('eFermi NOW', eFermi) # this produces bad estimate
-
+        # print('eFermi estimate', eFermi) # this produces bad estimate
+        # ----
+    #print('finish', results['efermi'])
     return results
 
 

@@ -110,13 +110,13 @@ def parse_infofile(meta_info_env, pew, fname):
                 pew.addValue(names[tokens[0]],
                              convert_unit(float(tokens[2]), nomadunit))
             if tokens[0] == 'Fermi energy':
+                pass
                 # print(tokens)
             # print('#', line)
 
 
-
-
 def parse_logfile(meta_info_env, pew, fname):
+    '''Parse the mainfile'''
     maxlines = 100
     with open(fname) as fd:
         for i, line in enumerate(fd):
@@ -131,6 +131,9 @@ def parse_logfile(meta_info_env, pew, fname):
 
 
 def parse_gridinfo(metaInfoEnv, pew, fname):
+    '''
+    fname: main filename
+    '''
     results = {}
 
     with open(fname) as fd:
@@ -541,7 +544,7 @@ def parse_without_class(fname, backend, parser_info):
             pew.addValue('single_configuration_calculation_to_system_ref',
                          system_gid)
             # print('Parse info file %s' % fname) #, file=fd)
-            logging.debug('Parse info file %s' % fname)
+            logging.debug('Parse info file %s' % fname) # mainfile
             parse_infofile(metaInfoEnv, pew, fname)
 
             with open_section('section_method') as method_gid:
