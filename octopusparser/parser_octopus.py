@@ -67,20 +67,6 @@ def parse_infofile(meta_info_env, pew, fname):
                 iterations = int(line.split()[-2])
                 pew.addValue('x_octopus_info_scf_converged_iterations',
                              iterations)
-            # - - - -
-            if  line.startswith('Fermi'):
-                # print('\tLINE:', line)
-                #pew.addValue('energy_reference_fermi', fermiref)
-                break
-        # ############
-        # CHAT WITH MARKUS
-        for line in fd:  # Jump down to Fermi FIXME as in FIRST BLOCK
-            # beware of units
-            # 'Fermi energy': 'energy_reference_fermi'
-            if line.startswith('Fermi'):
-                #octunit = line.strip().split()[-1].strip('[]:')
-                #nomadunit = {'eV': 'eV', 'H': 'hartree'}[octunit] # keep it
-                break
 
         for line in fd:  # Jump down to energies:
             if line.startswith('Energy ['):
@@ -109,10 +95,6 @@ def parse_infofile(meta_info_env, pew, fname):
             if tokens[0] in names:
                 pew.addValue(names[tokens[0]],
                              convert_unit(float(tokens[2]), nomadunit))
-            if tokens[0] == 'Fermi energy':
-                pass
-                # print(tokens)
-            # print('#', line)
 
 
 def parse_logfile(meta_info_env, pew, fname):
@@ -451,6 +433,10 @@ def parse_without_class(fname, backend, parser_info):
         nspins = calc.get_number_of_spins()
         nkpts = len(calc.get_k_point_weights())
 
+        #fermi_energy = calc.get_fermi_level()
+        #print('I can see: ', fermi_energy)
+        #pew.addArrayValues('energy_reference_fermi', [fermi_energy, fermi_energy])
+
         if logfile is None:
             # print('No stdout logfile found', file=fd)
             logging.debug('No stdout logfile found')
@@ -541,6 +527,9 @@ def parse_without_class(fname, backend, parser_info):
             #                   np.array(atoms.pbc))
 
         with open_section('section_single_configuration_calculation'):
+            fermi_energy = calc.get_fermi_level()
+            pew.addArrayValues('energy_reference_fermi', [fermi_energy, fermi_energy])
+
             pew.addValue('single_configuration_calculation_to_system_ref',
                          system_gid)
             # print('Parse info file %s' % fname) #, file=fd)

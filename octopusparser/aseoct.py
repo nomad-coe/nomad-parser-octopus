@@ -310,7 +310,6 @@ def read_static_info_kpoints(fd):
     return dict(ibz_k_points=ibz_k_points, k_point_weights=k_point_weights)
 
 
-#def read_static_info_eigenvalues(fd, energy_unit):
 def read_static_info_eigenvalues_efermi(fd, energy_unit):
     '''
     Parse eigenvalues and Fermi Energy from `static/info`
@@ -318,6 +317,13 @@ def read_static_info_eigenvalues_efermi(fd, energy_unit):
     energy_unit: string
     Returns: dictionary
     '''
+
+    # we had to allow this function to handle both
+    # eigenvalues and Fermi energies because the later
+    # comes in the output file immediately after the last
+    # eigenvalue, hence the "fermi line" is consumed by the
+    # line checkers that look for eigenvalues.
+
     values_sknx = {}
 
     nbands = 0
@@ -383,7 +389,6 @@ def read_static_info(fd):
         elif line.startswith('Eigenvalues ['):
             unit = get_energy_unit(line)
             results.update(read_static_info_eigenvalues_efermi(fd, unit))
-            ## print('I found:', results['efermi'])
         elif line.startswith('Energy ['):
             unit = get_energy_unit(line)
             results.update(read_static_info_energy(fd, unit))
@@ -424,18 +429,6 @@ def read_static_info(fd):
                 tokens = line.split()[-3:]
                 forces.append([float(f) for f in tokens])
             results['forces'] = np.array(forces) * forceunit
-        elif line.startswith('Fermi'):
-            # this check is 'one line too late'
-            # hence we capture Fermi energy from
-            # `read_static_info_eigenvalues()`
-            # print('Point 1', line)
-            tokens = line.split()
-            unit = {'eV': eV, 'H': Hartree}[tokens[-1]]
-            eFermi = float(tokens[-2]) * unit
-            results['efermi'] = eFermi
-            # print("helloo, eFermi:", eFermi, unit)
-            # print('####1', line)
-
 
     if 'ibz_k_points' not in results:
         results['ibz_k_points'] = np.zeros((1, 3))
@@ -454,7 +447,6 @@ def read_static_info(fd):
         results['efermi'] = eFermi
         # print('eFermi estimate', eFermi) # this produces bad estimate
         # ----
-    #print('finish', results['efermi'])
     return results
 
 
@@ -488,6 +480,9 @@ class Octopus(FileIOCalculator):
         return self.kwargs.get('xcfunctional', 'LDA')
 
     def get_fermi_level(self):
+        return self.results['efermi']
+
+    def get_fermi_energy(self):
         return self.results['efermi']
 
     def get_dipole_moment(self, atoms=None):
