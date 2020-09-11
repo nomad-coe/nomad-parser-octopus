@@ -1,10 +1,10 @@
-code-label: Octopus
-code-label-style: 'Capitals: O'
-code-url: https://octopus-code.org/
-parser-dir-name: dependencies/parsers/octopus/
-parser-git-url: https://gitlab.mpcdf.mpg.de/nomad-lab/parser-octopus
-parser-specific: ''
-table-of-files: |
+codeLabel: Octopus
+codeLabelStyle: 'Capitals: O'
+codeUrl: https://octopus-code.org/
+parserDirName: dependencies/parsers/octopus/
+parserGitUrl: https://gitlab.mpcdf.mpg.de/nomad-lab/parser-octopus
+parserSpecific: ''
+tableOfFiles: |
   |Input Filename| Description|
   |--- | --- |
   |`<text_file>` | **Mainfile:** a plain text file w/arbitrary name|
