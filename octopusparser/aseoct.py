@@ -63,7 +63,6 @@ def read_eigenvalues_file(fd):
             eigs[-1].setdefault(spin, []).append(float(eig))
             occs[-1].setdefault(spin, []).append(float(occ))
 
-
     nkpts = len(kpts)
     nspins = len(eigs[0])
     nbands = len(eigs[0][spin])
@@ -179,6 +178,7 @@ def block2list(namespace, lines, header=None):
         # XXX will fail for string literals containing '|'
         block.append(tokens)
     return name, block
+
 
 class OctNamespace:
     def __init__(self):
@@ -326,13 +326,13 @@ def read_static_info_eigenvalues_efermi(fd, energy_unit):
 
     values_sknx = {}
 
+    eFermi = None
     nbands = 0
     for line in fd:
         line = line.strip()
-        #print('\t\t' , line)
         if line.startswith('#'):
             continue
-        if line.startswith('Fermi'): # tmk
+        if line.startswith('Fermi'):  # tmk
             # print(line, '##') #  OK!
             tokens = line.split()
             unit = {'eV': eV, 'H': Hartree}[tokens[-1]]
@@ -360,13 +360,16 @@ def read_static_info_eigenvalues_efermi(fd, energy_unit):
     eps_skn = eps_skn.transpose(1, 0, 2).copy()
     occ_skn = occ_skn.transpose(1, 0, 2).copy()
     assert eps_skn.flags.contiguous
-    #print('save to dictionary: ', nspins, nkpts, nbands, eps_skn, occ_skn, eFermi)
-    return dict(nspins=nspins,
-                nkpts=nkpts,
-                nbands=nbands,
-                eigenvalues=eps_skn,
-                occupations=occ_skn,
-                efermi=eFermi)
+    # print('save to dictionary: ', nspins, nkpts, nbands, eps_skn, occ_skn, eFermi)
+    info_dict = dict(nspins=nspins,
+                     nkpts=nkpts,
+                     nbands=nbands,
+                     eigenvalues=eps_skn,
+                     occupations=occ_skn)
+    if eFermi is not None:
+        # not all Octopus' output might report the Fermi energy
+        info_dict['efermi'] = eFermi
+    return info_dict
 
 
 def read_static_info_energy(fd, energy_unit):
@@ -617,7 +620,7 @@ class Octopus(FileIOCalculator):
             return False
         elif sc == 'spin_polarized' or sc == 'polarized':
             return True
-        #else:
+        # else:
         #    raise NotImplementedError('SpinComponents keyword %s' % sc)
 
     def get_ibz_k_points(self):
@@ -687,7 +690,7 @@ class Octopus(FileIOCalculator):
         fd = open(inp_path)
         kwargs = parse_input_file(fd)
 
-        #self.atoms, kwargs = kwargs2atoms(kwargs)
+        # self.atoms, kwargs = kwargs2atoms(kwargs)
         self.kwargs.update(kwargs)
 
         fd.close()

@@ -57,6 +57,7 @@ is largely irrelevant.
 
 metaInfoEnv = None
 
+
 def parse_infofile(meta_info_env, pew, fname):
     # print('\n\n### parse_infofile()')
     # print('\tPROBLEM: {}\n\t{} ' .format(fname, 'should be static/info!!'))
@@ -237,14 +238,16 @@ def parse_coordinates_from_parserlog(fname):
 def normalize_names(names):
     return [name.lower() for name in names]
 
+
 # Dictionary of all meta info:
 normalized2real = None
 
 
 parser_info = {
-  "name": "parser_octopus",
-  "version": "1.0"
+    "name": "parser_octopus",
+    "version": "1.0"
 }
+
 
 def read_parser_log(path):
     exec_kwargs = {}
@@ -257,7 +260,7 @@ def read_parser_log(path):
             try:
                 name, value = tokens
             except ValueError:
-                continue # Not an assignment
+                continue  # Not an assignment
             name = name.strip().lower()
             value = value.strip()
 
@@ -303,7 +306,7 @@ def override_keywords(kwargs, parser_log_kwargs):
     # exec/parser.log but most will just be verbatim from the
     # input file whether they can be parsed or not.
     exec_override_keywords = set(['radius',
-                                  #'lsize',
+                                  # 'lsize',
                                   'spacing'])
 
     outkwargs = kwargs.copy()
@@ -326,8 +329,9 @@ def override_keywords(kwargs, parser_log_kwargs):
             #       '%s obtained from parser log'
             #       % (name, kwargs[name], parser_log_kwargs[name]),
             #       file=fd)
-            logging.debug('Keyword %s with value %s overridden by value '
-                '%s obtained from parser log'
+            logging.debug(
+                ('Keyword %s with value %s overridden by value '
+                 '%s obtained from parser log')
                 % (name, kwargs[name], parser_log_kwargs[name]))
 
             outkwargs[name] = parser_log_kwargs[name]
@@ -433,9 +437,9 @@ def parse_without_class(fname, backend, parser_info):
         nspins = calc.get_number_of_spins()
         nkpts = len(calc.get_k_point_weights())
 
-        #fermi_energy = calc.get_fermi_level()
-        #print('I can see: ', fermi_energy)
-        #pew.addArrayValues('energy_reference_fermi', [fermi_energy, fermi_energy])
+        # fermi_energy = calc.get_fermi_level()
+        # print('I can see: ', fermi_energy)
+        # pew.addArrayValues('energy_reference_fermi', [fermi_energy, fermi_energy])
 
         if logfile is None:
             # print('No stdout logfile found', file=fd)
@@ -519,11 +523,11 @@ def parse_without_class(fname, backend, parser_info):
             pew.addArrayValues('atom_positions', convert_unit(coords, 'bohr'))
 
             # XXX FIXME atoms can be labeled in ways not compatible with ASE.
-            #pew.addArrayValues('atom_labels',
+            # pew.addArrayValues('atom_labels',
             #                   np.array(atoms.get_chemical_symbols()))
-            #pew.addArrayValues('atom_positions',
+            # pew.addArrayValues('atom_positions',
             #                   convert_unit(atoms.get_positions(), 'angstrom'))
-            #pew.addArrayValues('configuration_periodic_dimensions',
+            # pew.addArrayValues('configuration_periodic_dimensions',
             #                   np.array(atoms.pbc))
 
         with open_section('section_single_configuration_calculation'):
@@ -533,7 +537,7 @@ def parse_without_class(fname, backend, parser_info):
             pew.addValue('single_configuration_calculation_to_system_ref',
                          system_gid)
             # print('Parse info file %s' % fname) #, file=fd)
-            logging.debug('Parse info file %s' % fname) # mainfile
+            logging.debug('Parse info file %s' % fname)  # mainfile
             parse_infofile(metaInfoEnv, pew, fname)
 
             with open_section('section_method') as method_gid:
@@ -542,8 +546,8 @@ def parse_without_class(fname, backend, parser_info):
                         pew.addValue('method_basis_set_kind', basis_set_kind)
                         pew.addValue('mapping_section_method_basis_set_cell_associated',
                                      basis_set_cell_dependent_gid)
-                #smearing_width = float(kwargs.get('smearing', 0.0))
-                #pew.addValue('smearing_width',
+                # smearing_width = float(kwargs.get('smearing', 0.0))
+                # pew.addValue('smearing_width',
                 #             convert_unit(smearing_width, ENERGY_UNIT))
                 # XXX remember to get smearing width somehow
                 smearing_func = kwargs.get('smearingfunction',
@@ -556,7 +560,7 @@ def parse_without_class(fname, backend, parser_info):
                                   'fermi_dirac': 'fermi',
                                   'cold_smearing': 'marzari-vanderbilt',
                                   'methfessel_paxton': 'methfessel-paxton'}
-                                  #'': 'tetrahedra',
+                                  # '': 'tetrahedra',
 
                 pew.addValue('smearing_kind',
                              smearing_kinds[smearing_func])
