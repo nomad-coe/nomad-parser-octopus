@@ -39,6 +39,7 @@ class section_single_configuration_calculation(public.section_single_configurati
     x_octopus_info_energy_ion_ion = Quantity(
         type=np.dtype(np.float64),
         shape=[],
+        unit='joule',
         description='''
         ion-ion interaction energy
         ''',

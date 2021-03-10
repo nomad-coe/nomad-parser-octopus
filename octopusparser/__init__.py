@@ -16,4 +16,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from octopusparser.parser_octopus import OctopusParserWrapper
+from octopusparser.octopus_parser import OctopusParser
