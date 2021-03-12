@@ -128,7 +128,7 @@ class ControlParser(TextParser):
 
         self._quantities = [
             Quantity(
-                'line', r'(.*\s*=\s*.*)#?', str_operation=str_to_line, repeats=True)]
+                'line', r'(\w.*\s*=\s*.*)#?', str_operation=str_to_line, repeats=True)]
 
     @property
     def mainfile(self):
@@ -208,6 +208,22 @@ class ControlParser(TextParser):
                 val /= v
             return val
 
+        if '+' in value:
+            vals = value.split('+')
+            vals = [self.evaluate_value(v) for v in vals]
+            val = 0.0
+            for v in vals:
+                val += v
+            return val
+
+        if '-' in value:
+            vals = value.split('-')
+            vals = [self.evaluate_value(v) for v in vals]
+            val = 0.0
+            for v in vals:
+                val -= v
+            return val
+
         return value
 
     @property
@@ -232,7 +248,10 @@ class InpParser(ControlParser):
 
     def init_quantities(self):
         def str_to_block(val_in):
-            val = [v.replace('"', '').replace("'", '').split('|') for v in val_in.strip().split('\n')]
+            val = [v.split('#')[0] for v in val_in.strip().split('\n')]
+            val = [
+                v.replace('"', '').replace("'", '').split('|')
+                for v in val if v]
             val[0] = val[0][0]
             return val
 
@@ -263,7 +282,7 @@ class LogParser(ControlParser):
         def str_to_block(val_in):
             val = val_in.strip().split('\n')
             name = val[0].strip().replace('"', '').replace("'", '')
-            val = [v.split('=')[1].replace('"', '').replace("'", '').strip() for v in val[1:]]
+            val = [v.split('#')[0].split('=')[1].replace('"', '').replace("'", '').strip() for v in val[1:]]
             return [name, val]
 
         super().init_quantities()
@@ -347,7 +366,7 @@ class OutParser(TextParser):
                         r'Octopus will treat the system as periodic in (\S+) dim', dtype=int),
                     Quantity(
                         'cell',
-                        r'Lattice Vectors \[(.*)\]([\d\s\.]+)',
+                        r'Lattice Vectors \[(.*)\]([-\d\s\.]+)',
                         str_operation=str_to_cell, convert=False),
                     Quantity(
                         'spacing',
@@ -708,7 +727,7 @@ class OctopusParser(FairdiParser):
 
             # eigenvalues
             eigenvalues = self.eigenvalue_parser.get('eigenvalues', self.info_parser.get('eigenvalues'))
-            if eigenvalues is not None:
+            if eigenvalues is not None and eigenvalues.get('eigenvalues') is not None:
                 kpts, eigs, occs = list(zip(*[e for e in eigenvalues.eigenvalues if e is not None]))
                 eigs = np.transpose(eigs, axes=(2, 0, 1))
                 occs = np.transpose(occs, axes=(2, 0, 1))
@@ -807,7 +826,6 @@ class OctopusParser(FairdiParser):
             # we try to resolve from output string
             for key in ['exchange', 'correlation']:
                 val = self.out_parser.get('theory_level', {}).get(key, None)
-                print
                 name, number = self._xc_functionals.get(val, (None, 0))
                 if name is not None:
                     xc_functionals.append(name.upper())
