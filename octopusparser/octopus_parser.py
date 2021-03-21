@@ -657,7 +657,8 @@ class OctopusParser(FairdiParser):
                 unit = None
                 if fermi_level is not None:
                     unit = fermi_level.units
-                    sec_scf.energy_reference_fermi_iteration = fermi_level
+                    fermi_level = [fermi_level.magnitude] * self.info.get('SpinComponents', 1)
+                    sec_scf.energy_reference_fermi_iteration = pint.Quantity(fermi_level, unit)
                 energy_total = iteration.get('energy_total')
                 if energy_total is not None:
                     unit = self.info.get('energyunit', 'hartree') if unit is None else unit
@@ -736,8 +737,13 @@ class OctopusParser(FairdiParser):
                     sec_eigenvalues.eigenvalues_kind = 'normal'
                 if len(kpts) > 0:
                     sec_eigenvalues.eigenvalues_kpoints = kpts
-                sec_eigenvalues.eigenvalues_values = eigs
+                sec_eigenvalues.eigenvalues_values = pint.Quantity(eigs, self.info.get('energyunit'))
                 sec_eigenvalues.eigenvalues_occupation = occs
+                fermi_level = eigenvalues.get('fermi_energy')
+                if fermi_level is not None:
+                    unit = fermi_level.units
+                    fermi_level = [fermi_level.magnitude] * len(eigs)
+                    sec_scc.energy_reference_fermi = pint.Quantity(fermi_level, unit)
 
             converged = self.out_parser.get('x_octopus_info_scf_converged_iterations')
             if converged is not None:

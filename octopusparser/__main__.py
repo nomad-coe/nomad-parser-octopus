@@ -16,19 +16,17 @@
 # limitations under the License.
 #
 
-from setuptools import setup, find_packages
+import sys
+import json
+import logging
+
+from nomad.utils import configure_logging
+from nomad.datamodel import EntryArchive
+from octopusparser import OctopusParser
 
 
-def main():
-    setup(
-        name='octopusparser',
-        version='1.0',
-        description='NOMAD parser implementation for Octopus.',
-        author='The NOMAD Authors',
-        license='APACHE 2.0',
-        packages=find_packages(exclude=['tests']),
-        install_requires=['nomad-lab'])
-
-
-if __name__ == '__main__':
-    main()
+if __name__ == "__main__":
+    configure_logging(console_log_level=logging.DEBUG)
+    archive = EntryArchive()
+    OctopusParser().parse(sys.argv[1], archive, logging)
+    json.dump(archive.m_to_dict(), sys.stdout, indent=2)
