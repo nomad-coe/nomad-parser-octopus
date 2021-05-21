@@ -1,12 +1,12 @@
 import logging
 import os
 import numpy as np
-import pint
 import re
 from ase.io import read
 from ase import units as ase_units
 
 from .metainfo import m_env
+from nomad.units import ureg
 from nomad.parsing import FairdiParser
 from nomad.parsing.file_parser import TextParser, Quantity
 from nomad.datamodel.metainfo.common_dft import Run, BasisSetCellDependent, System, Method,\
@@ -36,8 +36,8 @@ class EigenvalueParser(TextParser):
 
         def str_to_fermi_energy(val_in):
             val = val_in.split()
-            unit = 'eV' if val[1].startswith('e') else 'hartree'
-            return pint.Quantity(float(val[0]), unit)
+            unit = ureg.eV if val[1].startswith('e') else ureg.hartree
+            return float(val[0]) * unit
 
         self._quantities = [Quantity(
             'eigenvalues',
@@ -64,14 +64,13 @@ class InfoParser(EigenvalueParser):
 
         def str_to_energies(val_in):
             val = [v.split('=') for v in val_in.strip().split('\n')]
-            unit = 'eV' if '[eV]:' in val[0] else 'hartree'
-            return {v[0].strip(): pint.Quantity(float(v[1]), unit) for v in val if len(v) == 2}
+            unit = ureg.eV if '[eV]:' in val[0] else ureg.hartree
+            return {v[0].strip(): float(v[1]) * unit for v in val if len(v) == 2}
 
         def str_to_forces(val_in):
             val = [v.split() for v in val_in.strip().split('\n')]
-            unit = 'eV/angstrom' if '[eV/A]' in val[0] else 'hartree/bohr'
-            return pint.Quantity(
-                np.array([v[2:5] for v in val if len(v) == 5], dtype=float), unit)
+            unit = ureg.eV / ureg.angstrom if '[eV/A]' in val[0] else ureg.hartree / ureg.bohr
+            return np.array([v[2:5] for v in val if len(v) == 5], dtype=float) * unit
 
         super().init_quantities()
         self._quantities += [
@@ -320,18 +319,18 @@ class OutParser(TextParser):
             return [val[0].strip(), ''.join(val[1:]).strip()]
 
         def str_to_cell(val_in):
-            unit = 'angstrom' if val_in.lower().startswith('a') else 'bohr'
+            unit = ureg.angstrom if val_in.lower().startswith('a') else ureg.bohr
             val = [v.split() for v in val_in.strip().split('\n')[1:]]
-            return pint.Quantity(np.array(val, dtype=float), unit)
+            return np.array(val, dtype=float) * unit
 
         def str_to_spacing(val_in):
-            unit = 'angstrom' if val_in.startswith('A') else 'bohr'
-            return pint.Quantity(np.array(val_in.split()[1:4], dtype=float), unit)
+            unit = ureg.angstrom if val_in.startswith('A') else ureg.bohr
+            return np.array(val_in.split()[1:4], dtype=float) * unit
 
         def str_to_energy(val_in):
             val = val_in.split()
-            unit = 'eV' if val[1].startswith('e') else 'hartree'
-            return pint.Quantity(float(val[0]), unit)
+            unit = ureg.eV if val[1].startswith('e') else ureg.hartree
+            return float(val[0]) * unit
 
         def str_to_td_iteration(val_in):
             val = val_in.strip().split()
@@ -601,6 +600,8 @@ class OctopusParser(FairdiParser):
             'Lee, Colwell & Handy': ('lca_lch', 302),
             'OEP: Exact exchange': ('oep_x', 901)}
 
+        self._units_mapping = dict(ev=ureg.eV, hartree=ureg.hartree, angstrom=ureg.angstrom, bohr=ureg.bohr)
+
     def init_parser(self, filepath, logger):
         self.out_parser.mainfile = filepath
         self.out_parser.logger = logger
@@ -658,11 +659,11 @@ class OctopusParser(FairdiParser):
                 if fermi_level is not None:
                     unit = fermi_level.units
                     fermi_level = [fermi_level.magnitude] * self.info.get('SpinComponents', 1)
-                    sec_scf.energy_reference_fermi_iteration = pint.Quantity(fermi_level, unit)
+                    sec_scf.energy_reference_fermi_iteration = fermi_level * unit
                 energy_total = iteration.get('energy_total')
                 if energy_total is not None:
-                    unit = self.info.get('energyunit', 'hartree') if unit is None else unit
-                    sec_scf.energy_total_scf_iteration = pint.Quantity(energy_total, unit)
+                    unit = self._units_mapping.get(self.info.get('energyunit', 'hartree').lower()) if unit is None else unit
+                    sec_scf.energy_total_scf_iteration = energy_total * unit
                 time = iteration.get('time')
                 if time is not None:
                     sec_scf.time_scf_iteration = time
@@ -674,8 +675,7 @@ class OctopusParser(FairdiParser):
                 sec_scc = sec_run.m_create(SingleConfigurationCalculation)
                 energy = iteration.get('energy', None)
                 if energy is not None:
-                    sec_scc.energy_total = pint.Quantity(
-                        energy, self.info.get('energyunit', 'hartree'))
+                    sec_scc.energy_total = energy * self._units_mapping.get(self.info.get('energyunit', 'hartree').lower())
 
         # TODO add other calculation types
 
@@ -702,11 +702,11 @@ class OctopusParser(FairdiParser):
                     continue
                 sec_system = sec_run.m_create(System)
                 # TODO xyz does not contain cell info right?
-                cell = cell if cell is None else pint.Quantity(atoms.get_cell(), 'angstrom')
+                cell = cell if cell is None else atoms.get_cell() * ureg.angstrom
                 sec_system.simulation_cell = cell
                 sec_system.lattice_vectors = cell
                 sec_system.configuration_periodic_dimensions = pbc
-                sec_system.atom_positions = pint.Quantity(atoms.get_positions(), 'angstrom')
+                sec_system.atom_positions = atoms.get_positions() * ureg.angstrom
                 sec_system.atom_labels = atoms.get_chemical_symbols()
                 sec_scc.single_configuration_calculation_to_system_ref = sec_system
 
@@ -737,13 +737,13 @@ class OctopusParser(FairdiParser):
                     sec_eigenvalues.eigenvalues_kind = 'normal'
                 if len(kpts) > 0:
                     sec_eigenvalues.eigenvalues_kpoints = kpts
-                sec_eigenvalues.eigenvalues_values = pint.Quantity(eigs, self.info.get('energyunit'))
+                sec_eigenvalues.eigenvalues_values = eigs * self._units_mapping.get(self.info.get('energyunit').lower())
                 sec_eigenvalues.eigenvalues_occupation = occs
                 fermi_level = eigenvalues.get('fermi_energy')
                 if fermi_level is not None:
                     unit = fermi_level.units
                     fermi_level = [fermi_level.magnitude] * len(eigs)
-                    sec_scc.energy_reference_fermi = pint.Quantity(fermi_level, unit)
+                    sec_scc.energy_reference_fermi = fermi_level * unit
 
             converged = self.out_parser.get('x_octopus_info_scf_converged_iterations')
             if converged is not None:
@@ -795,7 +795,7 @@ class OctopusParser(FairdiParser):
             else:
                 # read from ase atoms (in angstroms)
                 units = 'angstrom'
-            sec_system.atom_positions = pint.Quantity(coordinates, units)
+            sec_system.atom_positions = coordinates * self._units_mapping.get(units.lower())
             sec_system.atom_labels = symbols
         else:
             self.logger.error('Error parsing atom positions and labels.')
@@ -810,8 +810,8 @@ class OctopusParser(FairdiParser):
             sec_method.smearing_kind = smearing_function
             smearing_width = self.info.get('Smearing', None)
             if smearing_width is not None:
-                sec_method.smearing_width = pint.Quantity(
-                    smearing_width, self.info['energyunit']).to('joule').magnitude
+                sec_method.smearing_width = (smearing_width * self._units_mapping.get(
+                    self.info['energyunit'].lower())).to('joule').magnitude
 
         # check dft+u
         dft_u = self.info.get('DFTULevel')
