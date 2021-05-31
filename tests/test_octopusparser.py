@@ -55,11 +55,11 @@ def test_scf(parser):
     assert sec_scc.energy_total.magnitude == approx(-6.91625667e-17)
     assert sec_scc.energy_electrostatic.magnitude == approx(4.79087203e-18)
     assert np.count_nonzero(sec_scc.atom_forces_free_raw) == 0
-    sec_eig = sec_scc.section_eigenvalues[0]
-    assert np.shape(sec_eig.eigenvalues_values) == (1, 18, 8)
-    assert sec_eig.eigenvalues_kpoints[11][2] == 0.25
-    assert sec_eig.eigenvalues_values[0][4][6].magnitude == approx(5.26639723e-19)
-    assert sec_eig.eigenvalues_occupation[0][16][1] == 2.0
+    sec_eig = sec_scc.eigenvalues[0]
+    assert np.shape(sec_eig.band_energies[17].band_energies_values) == (8,)
+    assert sec_eig.band_energies_kpoints[11][2] == 0.25
+    assert sec_eig.band_energies[4].band_energies_values[6].magnitude == approx(5.26639723e-19)
+    assert sec_eig.band_energies[16].band_energies_occupations[1] == 2.0
     sec_scf = sec_scc.section_scf_iteration
     assert len(sec_scf) == 8
     assert sec_scf[3].energy_total_scf_iteration.magnitude == approx(-6.91495422e-17)
@@ -76,11 +76,11 @@ def test_spinpol(parser):
 
     sec_scc = archive.section_run[0].section_single_configuration_calculation[0]
     assert sec_scc.energy_reference_fermi[0].magnitude == approx(7.39160185e-19)
-    sec_eig = sec_scc.section_eigenvalues[0]
-    assert np.shape(sec_eig.eigenvalues_values) == (2, 10, 20)
-    assert sec_eig.eigenvalues_values[1][5][4].magnitude == approx(-7.40576381e-18)
-    assert sec_eig.eigenvalues_kpoints[9][0] == 0.5
-    assert sec_eig.eigenvalues_occupation[0][1][17] == 0.972222
+    sec_eig = sec_scc.eigenvalues[0]
+    assert np.shape(sec_eig.band_energies[19].band_energies_values) == (20,)
+    assert sec_eig.band_energies[15].band_energies_values[4].magnitude == approx(-7.40576381e-18)
+    assert sec_eig.band_energies_kpoints[9][0] == 0.5
+    assert sec_eig.band_energies[1].band_energies_occupations[17] == 0.972222
     sec_scfs = sec_scc.section_scf_iteration
     assert sec_scfs[0].energy_total_scf_iteration.magnitude == approx(-1.02450582e-15)
     assert sec_scfs[5].energy_reference_fermi_iteration[0].magnitude == approx(7.85685151e-19)

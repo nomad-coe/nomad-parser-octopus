@@ -10,7 +10,8 @@ from nomad.units import ureg
 from nomad.parsing import FairdiParser
 from nomad.parsing.file_parser import TextParser, Quantity
 from nomad.datamodel.metainfo.common_dft import Run, BasisSetCellDependent, System, Method,\
-    SingleConfigurationCalculation, ScfIteration, XCFunctionals, Eigenvalues, Workflow
+    SingleConfigurationCalculation, ScfIteration, XCFunctionals, BandEnergies, BandEnergiesValues,\
+    Workflow
 
 
 re_float = r'[\d\.\-\+Ee]+'
@@ -732,13 +733,18 @@ class OctopusParser(FairdiParser):
                 kpts, eigs, occs = list(zip(*[e for e in eigenvalues.eigenvalues if e is not None]))
                 eigs = np.transpose(eigs, axes=(2, 0, 1))
                 occs = np.transpose(occs, axes=(2, 0, 1))
-                sec_eigenvalues = sec_scc.m_create(Eigenvalues)
-                if sec_run.section_method[-1].electronic_structure_method == 'DFT':
-                    sec_eigenvalues.eigenvalues_kind = 'normal'
+                sec_eigenvalues = sec_scc.m_create(BandEnergies)
                 if len(kpts) > 0:
-                    sec_eigenvalues.eigenvalues_kpoints = kpts
-                sec_eigenvalues.eigenvalues_values = eigs * self._units_mapping.get(self.info.get('energyunit').lower())
-                sec_eigenvalues.eigenvalues_occupation = occs
+                    sec_eigenvalues.band_energies_kpoints = kpts
+                eigs = eigs * self._units_mapping.get(self.info.get('energyunit').lower())
+                for spin in range(len(eigs)):
+                    for kpt in range(len(eigs[spin])):
+                        sec_eigenvalues_values = sec_eigenvalues.m_create(BandEnergiesValues)
+                        sec_eigenvalues_values.band_energies_spin = spin
+                        sec_eigenvalues_values.band_energies_kpoints_index = kpt
+                        sec_eigenvalues_values.band_energies_values = eigs[spin][kpt]
+                        sec_eigenvalues_values.band_energies_occupations = occs[spin][kpt]
+
                 fermi_level = eigenvalues.get('fermi_energy')
                 if fermi_level is not None:
                     unit = fermi_level.units
