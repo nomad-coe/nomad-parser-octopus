@@ -735,15 +735,15 @@ class OctopusParser(FairdiParser):
                 occs = np.transpose(occs, axes=(2, 0, 1))
                 sec_eigenvalues = sec_scc.m_create(BandEnergies)
                 if len(kpts) > 0:
-                    sec_eigenvalues.band_energies_kpoints = kpts
+                    sec_eigenvalues.kpoints = kpts
                 eigs = eigs * self._units_mapping.get(self.info.get('energyunit').lower())
                 for spin in range(len(eigs)):
                     for kpt in range(len(eigs[spin])):
                         sec_eigenvalues_values = sec_eigenvalues.m_create(BandEnergiesValues)
-                        sec_eigenvalues_values.band_energies_spin = spin
-                        sec_eigenvalues_values.band_energies_kpoints_index = kpt
-                        sec_eigenvalues_values.band_energies_values = eigs[spin][kpt]
-                        sec_eigenvalues_values.band_energies_occupations = occs[spin][kpt]
+                        sec_eigenvalues_values.spin = spin
+                        sec_eigenvalues_values.kpoints_index = kpt
+                        sec_eigenvalues_values.value = eigs[spin][kpt]
+                        sec_eigenvalues_values.occupations = occs[spin][kpt]
 
                 fermi_level = eigenvalues.get('fermi_energy')
                 if fermi_level is not None:
