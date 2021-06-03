@@ -52,9 +52,9 @@ def test_scf(parser):
     assert sec_system.atom_positions[1][0].magnitude == approx(1.91979671e-10)
 
     sec_scc = sec_run.section_single_configuration_calculation[0]
-    assert sec_scc.energy_total.magnitude == approx(-6.91625667e-17)
-    assert sec_scc.energy_electrostatic.magnitude == approx(4.79087203e-18)
-    assert np.count_nonzero(sec_scc.atom_forces_free_raw) == 0
+    assert sec_scc.energy_total.value.magnitude == approx(-6.91625667e-17)
+    assert sec_scc.energy_electrostatic.value.magnitude == approx(4.79087203e-18)
+    assert np.count_nonzero(sec_scc.forces_free.value_raw) == 0
     sec_eig = sec_scc.eigenvalues[0]
     assert np.shape(sec_eig.band_energies[17].value) == (8,)
     assert sec_eig.kpoints[11][2] == 0.25

@@ -1,5 +1,6 @@
 import logging
 import os
+from abinitparser import metainfo
 import numpy as np
 import re
 from ase.io import read
@@ -11,7 +12,7 @@ from nomad.parsing import FairdiParser
 from nomad.parsing.file_parser import TextParser, Quantity
 from nomad.datamodel.metainfo.common_dft import Run, BasisSetCellDependent, System, Method,\
     SingleConfigurationCalculation, ScfIteration, XCFunctionals, BandEnergies, BandEnergiesValues,\
-    Workflow
+    Workflow, Energy, Forces
 
 
 re_float = r'[\d\.\-\+Ee]+'
@@ -435,10 +436,10 @@ class OctopusParser(FairdiParser):
         self._info = None
 
         self._metainfo_keys_mapping = {
-            'Total': 'energy_total', 'Free': 'energy_free', 'Ion-ion': 'x_octopus_info_energy_ion_ion',
+            'Total': 'energy_total', 'Free': 'energy_free', 'Ion-ion': 'energy_nuclear_repulsion',
             'Eigenvalues': 'energy_sum_eigenvalues', 'Hartree': 'energy_electrostatic',
             'Exchange': 'energy_X', 'Correlation': 'energy_C', 'vanderWaals': 'energy_van_der_Waals',
-            '-TS': 'energy_correction_entropy', 'Kinetic': 'electronic_kinetic_energy',
+            '-TS': 'energy_correction_entropy', 'Kinetic': 'energy_kinetic_electronic',
             'SpinComponents': 'number_of_spin_channels', 'ExcessCharge': 'total_charge'}
 
         # TODO metainfo smearing_kind should be extended to cover all functions,
@@ -676,7 +677,10 @@ class OctopusParser(FairdiParser):
                 sec_scc = sec_run.m_create(SingleConfigurationCalculation)
                 energy = iteration.get('energy', None)
                 if energy is not None:
-                    sec_scc.energy_total = energy * self._units_mapping.get(self.info.get('energyunit', 'hartree').lower())
+                    sec_scc.m_add_sub_section(
+                        SingleConfigurationCalculation.energy_total, Energy(
+                            value=energy * self._units_mapping.get(self.info.get(
+                                'energyunit', 'hartree').lower())))
 
         # TODO add other calculation types
 
@@ -691,7 +695,8 @@ class OctopusParser(FairdiParser):
             sec_scc = sec_run.m_create(SingleConfigurationCalculation)
             energy_total = minimization.get('energy_total')
             if energy_total is not None:
-                sec_scc.energy_total = energy_total
+                sec_scc.m_add_sub_section(
+                    SingleConfigurationCalculation.energy_total, Energy(value=energy_total))
             number = minimization.get('number')
             cell = sec_run.section_system[-1].simulation_cell
             pbc = sec_run.section_system[-1].configuration_periodic_dimensions
@@ -720,12 +725,17 @@ class OctopusParser(FairdiParser):
                 metainfo_key = self._metainfo_keys_mapping.get(key, None)
                 if metainfo_key is None:
                     continue
-                setattr(sec_scc, metainfo_key, val)
+                if metainfo_key.startswith('energy_'):
+                    sec_scc.m_add_sub_section(getattr(
+                        SingleConfigurationCalculation, metainfo_key), Energy(value=val))
+                else:
+                    setattr(sec_scc, metainfo_key, val)
 
             # forces
             forces = self.info_parser.get('forces')
             if forces is not None:
-                sec_scc.atom_forces_free_raw = forces
+                sec_scc.m_add_sub_section(
+                    SingleConfigurationCalculation.forces_free, Forces(value_raw=forces))
 
             # eigenvalues
             eigenvalues = self.eigenvalue_parser.get('eigenvalues', self.info_parser.get('eigenvalues'))
