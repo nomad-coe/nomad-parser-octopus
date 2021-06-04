@@ -1,6 +1,5 @@
 import logging
 import os
-from abinitparser import metainfo
 import numpy as np
 import re
 from ase.io import read
@@ -11,7 +10,7 @@ from nomad.units import ureg
 from nomad.parsing import FairdiParser
 from nomad.parsing.file_parser import TextParser, Quantity
 from nomad.datamodel.metainfo.common_dft import Run, BasisSetCellDependent, System, Method,\
-    SingleConfigurationCalculation, ScfIteration, XCFunctionals, BandEnergies, BandEnergiesValues,\
+    SingleConfigurationCalculation, ScfIteration, XCFunctionals, BandEnergies,\
     Workflow, Energy, Forces
 
 
@@ -747,13 +746,8 @@ class OctopusParser(FairdiParser):
                 if len(kpts) > 0:
                     sec_eigenvalues.kpoints = kpts
                 eigs = eigs * self._units_mapping.get(self.info.get('energyunit').lower())
-                for spin in range(len(eigs)):
-                    for kpt in range(len(eigs[spin])):
-                        sec_eigenvalues_values = sec_eigenvalues.m_create(BandEnergiesValues)
-                        sec_eigenvalues_values.spin = spin
-                        sec_eigenvalues_values.kpoints_index = kpt
-                        sec_eigenvalues_values.value = eigs[spin][kpt]
-                        sec_eigenvalues_values.occupations = occs[spin][kpt]
+                sec_eigenvalues.value = eigs
+                sec_eigenvalues.occupations = occs
 
                 fermi_level = eigenvalues.get('fermi_energy')
                 if fermi_level is not None:
