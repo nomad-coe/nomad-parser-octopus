@@ -60,10 +60,10 @@ def test_scf(parser):
     assert sec_eig.kpoints[11][2] == 0.25
     assert sec_eig.value[0][4][6].magnitude == approx(5.26639723e-19)
     assert sec_eig.occupations[0][16][1] == 2.0
-    sec_scf = sec_scc.section_scf_iteration
+    sec_scf = sec_scc.scf_iteration
     assert len(sec_scf) == 8
-    assert sec_scf[3].energy_total_scf_iteration.magnitude == approx(-6.91495422e-17)
-    assert sec_scf[7].time_scf_iteration.magnitude == 9.42
+    assert sec_scf[3].energy_total.value.magnitude == approx(-6.91495422e-17)
+    assert sec_scf[7].time_calculation.magnitude == 9.42
 
 
 def test_spinpol(parser):
@@ -81,10 +81,10 @@ def test_spinpol(parser):
     assert sec_eig.value[1][5][4].magnitude == approx(-7.40576381e-18)
     assert sec_eig.kpoints[9][0] == 0.5
     assert sec_eig.occupations[0][1][17] == 0.972222
-    sec_scfs = sec_scc.section_scf_iteration
-    assert sec_scfs[0].energy_total_scf_iteration.magnitude == approx(-1.02450582e-15)
-    assert sec_scfs[5].energy_reference_fermi_iteration[0].magnitude == approx(7.85685151e-19)
-    assert sec_scfs[8].time_scf_iteration.magnitude == 15.63
+    sec_scfs = sec_scc.scf_iteration
+    assert sec_scfs[0].energy_total.value.magnitude == approx(-1.02450582e-15)
+    assert sec_scfs[5].energy_reference_fermi[0].magnitude == approx(7.85685151e-19)
+    assert sec_scfs[8].time_calculation.magnitude == 15.63
 
 
 def test_geomopt(parser):

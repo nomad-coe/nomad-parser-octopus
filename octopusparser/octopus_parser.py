@@ -660,14 +660,14 @@ class OctopusParser(FairdiParser):
                 if fermi_level is not None:
                     unit = fermi_level.units
                     fermi_level = [fermi_level.magnitude] * self.info.get('SpinComponents', 1)
-                    sec_scf.energy_reference_fermi_iteration = fermi_level * unit
+                    sec_scf.energy_reference_fermi = fermi_level * unit
                 energy_total = iteration.get('energy_total')
                 if energy_total is not None:
                     unit = self._units_mapping.get(self.info.get('energyunit', 'hartree').lower()) if unit is None else unit
-                    sec_scf.energy_total_scf_iteration = energy_total * unit
+                    sec_scf.energy_total = Energy(value=energy_total * unit)
                 time = iteration.get('time')
                 if time is not None:
-                    sec_scf.time_scf_iteration = time
+                    sec_scf.time_calculation = time
 
         # time-dependent
         # each td iteration is an scc
