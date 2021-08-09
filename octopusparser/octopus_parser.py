@@ -9,9 +9,18 @@ from .metainfo import m_env
 from nomad.units import ureg
 from nomad.parsing import FairdiParser
 from nomad.parsing.file_parser import TextParser, Quantity
-from nomad.datamodel.metainfo.common_dft import Run, BasisSetCellDependent, System, Method,\
-    SingleConfigurationCalculation, ScfIteration, XCFunctionals, BandEnergies,\
-    Workflow, Energy, Forces
+from nomad.datamodel.metainfo.run.run import Run, Program
+from nomad.datamodel.metainfo.run.method import (
+    Electronic, Functional, Smearing, Method, DFT, BasisSet, BasisSetCellDependent,
+    MethodReference, XCFunctional
+)
+from nomad.datamodel.metainfo.run.system import (
+    System, Atoms, SystemReference
+)
+from nomad.datamodel.metainfo.run.calculation import (
+    Calculation, ScfIteration, Energy, EnergyEntry, Forces, ForcesEntry, BandEnergies
+)
+from nomad.datamodel.metainfo.workflow import Workflow
 
 
 re_float = r'[\d\.\-\+Ee]+'
@@ -424,7 +433,6 @@ class OctopusParser(FairdiParser):
         super().__init__(
             name='parsers/octopus', code_name='Octopus', code_homepage='https://octopus-code.org/',
             mainfile_contents_re=(r'\|0\) ~ \(0\) \|'))
-        self._metainfo_env = m_env
 
         self.out_parser = OutParser()
         self.log_parser = LogParser()
@@ -437,9 +445,9 @@ class OctopusParser(FairdiParser):
         self._metainfo_keys_mapping = {
             'Total': 'energy_total', 'Free': 'energy_free', 'Ion-ion': 'energy_nuclear_repulsion',
             'Eigenvalues': 'energy_sum_eigenvalues', 'Hartree': 'energy_electrostatic',
-            'Exchange': 'energy_X', 'Correlation': 'energy_C', 'vanderWaals': 'energy_van_der_Waals',
+            'Exchange': 'energy_exchange', 'Correlation': 'energy_correlation', 'vanderWaals': 'energy_van_der_Waals',
             '-TS': 'energy_correction_entropy', 'Kinetic': 'energy_kinetic_electronic',
-            'SpinComponents': 'number_of_spin_channels', 'ExcessCharge': 'total_charge'}
+            'SpinComponents': 'n_spin_channels', 'ExcessCharge': 'charge'}
 
         # TODO metainfo smearing_kind should be extended to cover all functions,
         # e.g. gaussian and spline are not the same
@@ -647,24 +655,23 @@ class OctopusParser(FairdiParser):
         return self._info
 
     def parse_scc(self):
-        sec_run = self.archive.section_run[-1]
+        sec_run = self.archive.run[-1]
 
         # self-consistent
         # SCF energies are printed only in output
         for scf in self.out_parser.get('self_consistent', []):
-            sec_scc = sec_run.m_create(SingleConfigurationCalculation)
+            sec_scc = sec_run.m_create(Calculation)
             for iteration in scf.get('iteration', []):
                 sec_scf = sec_scc.m_create(ScfIteration)
+                sec_scf_energy = sec_scf.m_create(Energy)
                 fermi_level = iteration.get('fermi_level')
                 unit = None
                 if fermi_level is not None:
-                    unit = fermi_level.units
-                    fermi_level = [fermi_level.magnitude] * self.info.get('SpinComponents', 1)
-                    sec_scf.energy_reference_fermi = fermi_level * unit
+                    sec_scf_energy.fermi = fermi_level
                 energy_total = iteration.get('energy_total')
                 if energy_total is not None:
                     unit = self._units_mapping.get(self.info.get('energyunit', 'hartree').lower()) if unit is None else unit
-                    sec_scf.energy_total = Energy(value=energy_total * unit)
+                    sec_scf_energy.total = EnergyEntry(value=energy_total * unit)
                 time = iteration.get('time')
                 if time is not None:
                     sec_scf.time_calculation = time
@@ -673,13 +680,11 @@ class OctopusParser(FairdiParser):
         # each td iteration is an scc
         for td in self.out_parser.get('time_dependent', []):
             for iteration in td.get('iteration', []):
-                sec_scc = sec_run.m_create(SingleConfigurationCalculation)
+                sec_scc = sec_run.m_create(Calculation)
                 energy = iteration.get('energy', None)
                 if energy is not None:
-                    sec_scc.m_add_sub_section(
-                        SingleConfigurationCalculation.energy_total, Energy(
-                            value=energy * self._units_mapping.get(self.info.get(
-                                'energyunit', 'hartree').lower())))
+                    sec_scc.energy = Energy(total=EnergyEntry(
+                        value=energy * self._units_mapping.get(self.info.get('energyunit', 'hartree').lower())))
 
         # TODO add other calculation types
 
@@ -691,14 +696,13 @@ class OctopusParser(FairdiParser):
 
         # TODO test geometry optimizations, cannot find an exaple
         for minimization in self.out_parser.get('minimization', []):
-            sec_scc = sec_run.m_create(SingleConfigurationCalculation)
+            sec_scc = sec_run.m_create(Calculation)
             energy_total = minimization.get('energy_total')
             if energy_total is not None:
-                sec_scc.m_add_sub_section(
-                    SingleConfigurationCalculation.energy_total, Energy(value=energy_total))
+                sec_scc.energy = Energy(total=EnergyEntry(value=energy_total))
             number = minimization.get('number')
-            cell = sec_run.section_system[-1].simulation_cell
-            pbc = sec_run.section_system[-1].configuration_periodic_dimensions
+            cell = sec_run.system[-1].lattice_vectors
+            pbc = sec_run.system[-1].periodic
             if number is not None:
                 path = os.path.join(self.out_parser.maindir, 'geom/go.%04d.xyz' % number)
                 try:
@@ -708,33 +712,33 @@ class OctopusParser(FairdiParser):
                 sec_system = sec_run.m_create(System)
                 # TODO xyz does not contain cell info right?
                 cell = cell if cell is None else atoms.get_cell() * ureg.angstrom
-                sec_system.simulation_cell = cell
-                sec_system.lattice_vectors = cell
-                sec_system.configuration_periodic_dimensions = pbc
-                sec_system.atom_positions = atoms.get_positions() * ureg.angstrom
-                sec_system.atom_labels = atoms.get_chemical_symbols()
-                sec_scc.single_configuration_calculation_to_system_ref = sec_system
+                sec_atoms = sec_system.m_create(Atoms)
+                sec_atoms.lattice_vectors = cell
+                sec_atoms.periodic = pbc
+                sec_atoms.positions = atoms.get_positions() * ureg.angstrom
+                sec_atoms.labels = atoms.get_chemical_symbols()
+                sec_scc.system_ref.append(SystemReference(value=sec_system))
 
-        if len(sec_run.section_single_configuration_calculation) > 0:
-            sec_scc = sec_run.section_single_configuration_calculation[-1]
+        if len(sec_run.calculation) > 0:
+            sec_scc = sec_run.calculation[-1]
             # final results are printed only in static/info
             # energies
             energies = self.info_parser.get('energies', {})
+            sec_energy = sec_scc.m_create(Energy)
             for key, val in energies.items():
                 metainfo_key = self._metainfo_keys_mapping.get(key, None)
                 if metainfo_key is None:
                     continue
                 if metainfo_key.startswith('energy_'):
-                    sec_scc.m_add_sub_section(getattr(
-                        SingleConfigurationCalculation, metainfo_key), Energy(value=val))
+                    sec_energy.m_add_sub_section(getattr(
+                        Energy, metainfo_key.replace('energy_', '').lower()), EnergyEntry(value=val))
                 else:
                     setattr(sec_scc, metainfo_key, val)
 
             # forces
             forces = self.info_parser.get('forces')
             if forces is not None:
-                sec_scc.m_add_sub_section(
-                    SingleConfigurationCalculation.forces_free, Forces(value_raw=forces))
+                sec_scc.forces = Forces(free=ForcesEntry(value_raw=forces))
 
             # eigenvalues
             eigenvalues = self.eigenvalue_parser.get('eigenvalues', self.info_parser.get('eigenvalues'))
@@ -751,28 +755,26 @@ class OctopusParser(FairdiParser):
 
                 fermi_level = eigenvalues.get('fermi_energy')
                 if fermi_level is not None:
-                    unit = fermi_level.units
-                    fermi_level = [fermi_level.magnitude] * len(eigs)
-                    sec_scc.energy_reference_fermi = fermi_level * unit
+                    sec_energy.fermi = fermi_level
 
             converged = self.out_parser.get('x_octopus_info_scf_converged_iterations')
             if converged is not None:
                 sec_run.x_octopus_info_scf_converged_iterations = converged
 
-            sec_scc.single_configuration_to_calculation_method_ref = sec_run.section_method[-1]
-            sec_scc.single_configuration_calculation_to_system_ref = sec_run.section_system[-1]
+            sec_scc.method_ref.append(MethodReference(value=sec_run.method[-1]))
+            sec_scc.system_ref.append(SystemReference(value=sec_run.system[-1]))
 
     def parse_system(self):
-        sec_run = self.archive.section_run[-1]
+        sec_run = self.archive.run[-1]
         sec_system = sec_run.m_create(System)
+        sec_atoms = sec_system.m_create(Atoms)
 
         cell = self.out_parser.get('grid', {}).get('cell')
         if cell is not None:
-            sec_system.simulation_cell = cell
-            sec_system.lattice_vectors = cell
+            sec_atoms.lattice_vectors = cell
         npbc = self.out_parser.get('grid', {}).get('npbc', 3)
         pbc = [True for _ in range(npbc)]
-        sec_system.configuration_periodic_dimensions = pbc + [False] * (3 - len(pbc))
+        sec_atoms.periodic = pbc + [False] * (3 - len(pbc))
 
         symbols, coordinates = self.log_parser.get_coordinates()
         if len(coordinates) == 0:
@@ -805,32 +807,40 @@ class OctopusParser(FairdiParser):
             else:
                 # read from ase atoms (in angstroms)
                 units = 'angstrom'
-            sec_system.atom_positions = coordinates * self._units_mapping.get(units.lower())
-            sec_system.atom_labels = symbols
+            sec_atoms.positions = coordinates * self._units_mapping.get(units.lower())
+            sec_atoms.labels = symbols
         else:
             self.logger.error('Error parsing atom positions and labels.')
 
     def parse_method(self):
-        sec_run = self.archive.section_run[-1]
+        sec_run = self.archive.run[-1]
         sec_method = sec_run.m_create(Method)
+        sec_electronic = sec_method.m_create(Electronic)
+        sec_dft = sec_method.m_create(DFT)
+
+        # basis set
+        sec_basis = sec_method.m_create(BasisSet)
+        sec_basis.kind = 'Real-space grid'
+        sec_basis_set = sec_basis.m_create(BasisSetCellDependent)
+        sec_basis_set.kind = 'realspace_grids'
 
         # smearing
         smearing_function = self._smearing_functions.get(self.info.get('SmearingFunction'), None)
         if smearing_function is not None:
-            sec_method.smearing_kind = smearing_function
+            sec_electronic.smearing = Smearing(kind=smearing_function)
             smearing_width = self.info.get('Smearing', None)
             if smearing_width is not None:
-                sec_method.smearing_width = (smearing_width * self._units_mapping.get(
+                sec_electronic.smearing.width = (smearing_width * self._units_mapping.get(
                     self.info['energyunit'].lower())).to('joule').magnitude
 
         # check dft+u
         dft_u = self.info.get('DFTULevel')
         if dft_u is not None:
-            sec_method.electronic_structure_method = 'DFT+U'
+            sec_electronic.method = 'DFT+U'
         else:
             theory_level = self._theory_levels.get(self.info.get('TheoryLevel', 4), None)
             if theory_level is not None:
-                sec_method.electronic_structure_method = theory_level
+                sec_electronic.method = theory_level
 
         # xc functional
         xc_functionals = []
@@ -858,9 +868,16 @@ class OctopusParser(FairdiParser):
                     xc_functionals = []
                     self.logger.error(
                         'Error resolving xc functional', data=dict(XCfunctional=xc_functional))
+        sec_xc_functional = sec_dft.m_create(XCFunctional)
         for xc_functional in xc_functionals:
-            sec_xc = sec_method.m_create(XCFunctionals)
-            sec_xc.XC_functional_name = xc_functional
+            if '_X_' in xc_functional or xc_functional.endswith('_X'):
+                sec_xc_functional.exchange.append(Functional(name=xc_functional))
+            elif '_C_' in xc_functional or xc_functional.endswith('_C'):
+                sec_xc_functional.correlation.append(Functional(name=xc_functional))
+            elif 'HYB' in xc_functional:
+                sec_xc_functional.hybrid.append(Functional(name=xc_functional))
+            else:
+                sec_xc_functional.contributions.append(Functional(name=xc_functional))
 
         method_keys = ['SpinComponents', 'ExcessCharge']
         for key in method_keys:
@@ -869,14 +886,16 @@ class OctopusParser(FairdiParser):
             if val is None or metainfo_key is None:
                 continue
             try:
-                setattr(sec_method, metainfo_key, int(val))
+                setattr(sec_electronic, metainfo_key, int(val))
             except Exception:
                 self.logger.warn('Error setting metainfo', data=dict(key=metainfo_key))
 
         # convert parsed values to proper metainfo type
+        definitions = dict(m_env.all_definitions_by_name)
+
         def convert_to_metainfo(prefix, key, val):
             metainfo_name = 'x_octopus_%s_%s' % (prefix, key)
-            metainfo_type = self._metainfo_env.all_definitions_by_name.get(metainfo_name, None)
+            metainfo_type = definitions.get(metainfo_name, None)
             if metainfo_type is not None:
                 metainfo_type = metainfo_type[0].type
                 if isinstance(metainfo_type, np.dtype):
@@ -905,14 +924,8 @@ class OctopusParser(FairdiParser):
         self.init_parser(filepath, logger)
 
         sec_run = self.archive.m_create(Run)
-        sec_run.program_name = 'Octopus'
-        sec_run.program_basis_set_type = 'Real-space grid'
-
-        sec_basis_set = sec_run.m_create(BasisSetCellDependent)
-        sec_basis_set.basis_set_cell_dependent_kind = 'realspace_grids'
-
         header = self.out_parser.header
-        sec_run.program_version = str(header.get('Version', ''))
+        sec_run.program = Program(name='Octopus', version=str(header.get('Version', '')))
         sec_run.x_octopus_log_svn_revision = int(header.get('Revision', 0))
 
         self.parse_method()
@@ -922,4 +935,4 @@ class OctopusParser(FairdiParser):
         self.parse_scc()
 
         sec_workflow = archive.m_create(Workflow)
-        sec_workflow.workflow_type = 'geometry_optimization'
+        sec_workflow.type = 'geometry_optimization'

@@ -36,33 +36,33 @@ def test_scf(parser):
     archive = EntryArchive()
     parser.parse('tests/data/Si_scf/stdout.txt', archive, None)
 
-    sec_run = archive.section_run[0]
-    assert sec_run.program_version == 'wolfi'
+    sec_run = archive.run[0]
+    assert sec_run.program.version == 'wolfi'
     assert sec_run.x_octopus_input_Spacing == approx(0.28345892)
     assert sec_run.x_octopus_parserlog_SpeciesProjectorSphereThreshold == 0.001
 
-    sec_method = sec_run.section_method[0]
-    assert sec_method.smearing_kind == 'empty'
-    assert sec_method.electronic_structure_method == 'DFT'
-    assert sec_method.section_XC_functionals[0].XC_functional_name == 'LDA_C_PZ_MOD'
+    sec_method = sec_run.method[0]
+    assert sec_method.electronic.smearing.kind == 'empty'
+    assert sec_method.electronic.method == 'DFT'
+    assert sec_method.dft.xc_functional.correlation[0].name == 'LDA_C_PZ_MOD'
 
-    sec_system = sec_run.section_system[0]
-    assert False not in sec_system.configuration_periodic_dimensions
-    assert sec_system.atom_labels == ['Si', 'Si', 'Si', 'Si']
-    assert sec_system.atom_positions[1][0].magnitude == approx(1.91979671e-10)
+    sec_system = sec_run.system[0]
+    assert False not in sec_system.atoms.periodic
+    assert sec_system.atoms.labels == ['Si', 'Si', 'Si', 'Si']
+    assert sec_system.atoms.positions[1][0].magnitude == approx(1.91979671e-10)
 
-    sec_scc = sec_run.section_single_configuration_calculation[0]
-    assert sec_scc.energy_total.value.magnitude == approx(-6.91625667e-17)
-    assert sec_scc.energy_electrostatic.value.magnitude == approx(4.79087203e-18)
-    assert np.count_nonzero(sec_scc.forces_free.value_raw) == 0
-    sec_eig = sec_scc.eigenvalues[0]
+    sec_scc = sec_run.calculation[0]
+    assert sec_scc.energy.total.value.magnitude == approx(-6.91625667e-17)
+    assert sec_scc.energy.electrostatic.value.magnitude == approx(4.79087203e-18)
+    assert np.count_nonzero(sec_scc.forces.free.value_raw) == 0
+    sec_eig = sec_scc.eigenvalues
     assert np.shape(sec_eig.value[0][17]) == (8,)
     assert sec_eig.kpoints[11][2] == 0.25
     assert sec_eig.value[0][4][6].magnitude == approx(5.26639723e-19)
     assert sec_eig.occupations[0][16][1] == 2.0
     sec_scf = sec_scc.scf_iteration
     assert len(sec_scf) == 8
-    assert sec_scf[3].energy_total.value.magnitude == approx(-6.91495422e-17)
+    assert sec_scf[3].energy.total.value.magnitude == approx(-6.91495422e-17)
     assert sec_scf[7].time_calculation.magnitude == 9.42
 
 
@@ -70,20 +70,20 @@ def test_spinpol(parser):
     archive = EntryArchive()
     parser.parse('tests/data/Fe_spinpol/stdout.txt', archive, None)
 
-    assert archive.section_run[0].x_octopus_parserlog_SpinComponents == '2'
-    assert archive.section_run[0].x_octopus_input_Units == 'ev_angstrom'
-    assert archive.section_run[0].x_octopus_parserlog_PreconditionerFilterFactor == 0.6
+    assert archive.run[0].x_octopus_parserlog_SpinComponents == '2'
+    assert archive.run[0].x_octopus_input_Units == 'ev_angstrom'
+    assert archive.run[0].x_octopus_parserlog_PreconditionerFilterFactor == 0.6
 
-    sec_scc = archive.section_run[0].section_single_configuration_calculation[0]
-    assert sec_scc.energy_reference_fermi[0].magnitude == approx(7.39160185e-19)
-    sec_eig = sec_scc.eigenvalues[0]
+    sec_scc = archive.run[0].calculation[0]
+    assert sec_scc.energy.fermi.magnitude == approx(7.39160185e-19)
+    sec_eig = sec_scc.eigenvalues
     assert np.shape(sec_eig.value[1][9]) == (20,)
     assert sec_eig.value[1][5][4].magnitude == approx(-7.40576381e-18)
     assert sec_eig.kpoints[9][0] == 0.5
     assert sec_eig.occupations[0][1][17] == 0.972222
     sec_scfs = sec_scc.scf_iteration
-    assert sec_scfs[0].energy_total.value.magnitude == approx(-1.02450582e-15)
-    assert sec_scfs[5].energy_reference_fermi[0].magnitude == approx(7.85685151e-19)
+    assert sec_scfs[0].energy.total.value.magnitude == approx(-1.02450582e-15)
+    assert sec_scfs[5].energy.fermi.magnitude == approx(7.85685151e-19)
     assert sec_scfs[8].time_calculation.magnitude == 15.63
 
 
