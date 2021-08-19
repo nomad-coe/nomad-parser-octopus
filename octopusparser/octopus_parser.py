@@ -750,7 +750,7 @@ class OctopusParser(FairdiParser):
                 if len(kpts) > 0:
                     sec_eigenvalues.kpoints = kpts
                 eigs = eigs * self._units_mapping.get(self.info.get('energyunit').lower())
-                sec_eigenvalues.value = eigs
+                sec_eigenvalues.energies = eigs
                 sec_eigenvalues.occupations = occs
 
                 fermi_level = eigenvalues.get('fermi_energy')

@@ -56,9 +56,9 @@ def test_scf(parser):
     assert sec_scc.energy.electrostatic.value.magnitude == approx(4.79087203e-18)
     assert np.count_nonzero(sec_scc.forces.free.value_raw) == 0
     sec_eig = sec_scc.eigenvalues[0]
-    assert np.shape(sec_eig.value[0][17]) == (8,)
+    assert np.shape(sec_eig.energies[0][17]) == (8,)
     assert sec_eig.kpoints[11][2] == 0.25
-    assert sec_eig.value[0][4][6].magnitude == approx(5.26639723e-19)
+    assert sec_eig.energies[0][4][6].magnitude == approx(5.26639723e-19)
     assert sec_eig.occupations[0][16][1] == 2.0
     sec_scf = sec_scc.scf_iteration
     assert len(sec_scf) == 8
@@ -77,8 +77,8 @@ def test_spinpol(parser):
     sec_scc = archive.run[0].calculation[0]
     assert sec_scc.energy.fermi.magnitude == approx(7.39160185e-19)
     sec_eig = sec_scc.eigenvalues[0]
-    assert np.shape(sec_eig.value[1][9]) == (20,)
-    assert sec_eig.value[1][5][4].magnitude == approx(-7.40576381e-18)
+    assert np.shape(sec_eig.energies[1][9]) == (20,)
+    assert sec_eig.energies[1][5][4].magnitude == approx(-7.40576381e-18)
     assert sec_eig.kpoints[9][0] == 0.5
     assert sec_eig.occupations[0][1][17] == 0.972222
     sec_scfs = sec_scc.scf_iteration
