@@ -9,15 +9,15 @@ from .metainfo import m_env
 from nomad.units import ureg
 from nomad.parsing import FairdiParser
 from nomad.parsing.file_parser import TextParser, Quantity
-from nomad.datamodel.metainfo.run.run import Run, Program
-from nomad.datamodel.metainfo.run.method import (
+from nomad.datamodel.metainfo.simulation.run import Run, Program
+from nomad.datamodel.metainfo.simulation.method import (
     Electronic, Functional, Smearing, Method, DFT, BasisSet, BasisSetCellDependent,
-    MethodReference, XCFunctional
+    XCFunctional
 )
-from nomad.datamodel.metainfo.run.system import (
-    System, Atoms, SystemReference
+from nomad.datamodel.metainfo.simulation.system import (
+    System, Atoms
 )
-from nomad.datamodel.metainfo.run.calculation import (
+from nomad.datamodel.metainfo.simulation.calculation import (
     Calculation, ScfIteration, Energy, EnergyEntry, Forces, ForcesEntry, BandEnergies
 )
 from nomad.datamodel.metainfo.workflow import Workflow
@@ -717,7 +717,7 @@ class OctopusParser(FairdiParser):
                 sec_atoms.periodic = pbc
                 sec_atoms.positions = atoms.get_positions() * ureg.angstrom
                 sec_atoms.labels = atoms.get_chemical_symbols()
-                sec_scc.system_ref.append(SystemReference(value=sec_system))
+                sec_scc.system_ref = sec_system
 
         if len(sec_run.calculation) > 0:
             sec_scc = sec_run.calculation[-1]
@@ -761,8 +761,8 @@ class OctopusParser(FairdiParser):
             if converged is not None:
                 sec_run.x_octopus_info_scf_converged_iterations = converged
 
-            sec_scc.method_ref.append(MethodReference(value=sec_run.method[-1]))
-            sec_scc.system_ref.append(SystemReference(value=sec_run.system[-1]))
+            sec_scc.method_ref = sec_run.method[-1]
+            sec_scc.system_ref = sec_run.system[-1]
 
     def parse_system(self):
         sec_run = self.archive.run[-1]
