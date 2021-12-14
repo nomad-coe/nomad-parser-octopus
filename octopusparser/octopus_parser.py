@@ -772,9 +772,9 @@ class OctopusParser(FairdiParser):
         cell = self.out_parser.get('grid', {}).get('cell')
         if cell is not None:
             sec_atoms.lattice_vectors = cell
-        npbc = self.out_parser.get('grid', {}).get('npbc', 3)
-        pbc = [True for _ in range(npbc)]
-        sec_atoms.periodic = pbc + [False] * (3 - len(pbc))
+            npbc = self.out_parser.get('grid', {}).get('npbc', 3)
+            pbc = [True for _ in range(npbc)]
+            sec_atoms.periodic = pbc + [False] * (3 - len(pbc))
 
         symbols, coordinates = self.log_parser.get_coordinates()
         if len(coordinates) == 0:
@@ -807,7 +807,7 @@ class OctopusParser(FairdiParser):
             else:
                 # read from ase atoms (in angstroms)
                 units = 'angstrom'
-            sec_atoms.positions = coordinates * self._units_mapping.get(units.lower())
+            sec_atoms.positions = coordinates * self._units_mapping.get(str(units).lower())
             sec_atoms.labels = symbols
         else:
             self.logger.error('Error parsing atom positions and labels.')
