@@ -701,8 +701,8 @@ class OctopusParser(FairdiParser):
             if energy_total is not None:
                 sec_scc.energy = Energy(total=EnergyEntry(value=energy_total))
             number = minimization.get('number')
-            cell = sec_run.system[-1].lattice_vectors
-            pbc = sec_run.system[-1].periodic
+            cell = sec_run.system[-1].atoms.lattice_vectors
+            pbc = sec_run.system[-1].atoms.periodic
             if number is not None:
                 path = os.path.join(self.out_parser.maindir, 'geom/go.%04d.xyz' % number)
                 try:
